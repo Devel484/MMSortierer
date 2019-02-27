@@ -25,9 +25,8 @@
 	.balign 4
 	.global _start
 
-_start:
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@	Table of all needed GPIOs:
+@	Table of all needed GPIOs for init in _start:
 @
 @	GPIO	|	Signal		|	Hardware	
 @	--------------------------------------------------------------
@@ -80,9 +79,41 @@ _start:
 @	27	|	Output		|	nSLP	  Sleep Signal CoProzessor
 @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-init:
 
-	.end
+
+@ --------------------------------------------------------------------
+@ Inititalize all needed GPIOs (see above), Set Input/Output mode, 
+@ Set starting values of some Pins (11, 17)
+@  param: none
+@  return: none
+@ -------------------------------------------------------------------
+_start:
+
+
+@ --------------------------------------------------------------------
+@ Move Outlet Motor to starting position. The Hall sensor only returns 
+@ true/false, so in order to find the center the motor turns until true
+@ starts counting its steps, turns until false and then turns back half
+@ of the steps counted to center itself
+@  param: none
+@  return: none
+@ --------------------------------------------------------------------
+startpos_outlet:
+
+@ --------------------------------------------------------------------
+@ Move Color-Wheel to starting position, same principle as with Outlet
+@  param: none
+@  return: none
+@ --------------------------------------------------------------------
+startpos_cw:
+
+@ --------------------------------------------------------------------
+@ Main Loop to control the sorting process
+@  param: none
+@  return: none
+@ --------------------------------------------------------------------
+main:
+
 @ - END OF TEXT SECTION   @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
