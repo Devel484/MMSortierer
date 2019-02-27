@@ -1,7 +1,7 @@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @	Sort.s                                                                     @
 @ -------------------------------------------------------------------------------- @
-@	Author: Niklas Haderer, Pascal Gelbling, Christoph Hund, Moritz Fluechter  @
+@	Author: Niklas Haderer, Pascal Kelbling, Christoph Hund, Moritz Fluechter  @
 @	Target: Raspberri Pi, Raspbian						   @
 @	Project: MM-Sorting-Machine						   @
 @	Date: 27.02.2019							   @
@@ -28,7 +28,7 @@
 _start:
 
 
-
+	.end
 @ - END OF TEXT SECTION   @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
