@@ -265,6 +265,95 @@ hw_init:
 @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+        ldr       r1, =gpio_mmap_adr          @ reload the addr for accessing the GPIOs
+        ldr       GPIOREG, [r1]
+
+        
+
+@Configure Output pins
+@ Each pin has a 3 bit config mask stored in GPFSEL1 to GPFSEL5 (32bit per register)
+@ 000 -> input, 001 -> output
+@ thus only output pins need to be configured
+
+@ GPFSEL0, GPIOs 0-9 (Pins 2, 3, 4, 5, 6, 7 needed as Output):
+
+        mov     r1,#0                         @ make sure r1 is 0 -> bit mask
+
+        mov     r2,#1                         @ GPIO2: prepare r2 with 1 for shift
+        lsl     r2,#6                         @  left shift 1 to bit pos 6 (FSEL2)
+        orr     r1,r1,r2                      @  add config to bit mask in r1
+
+        mov     r2,#1                         @ GPIO3: prepare r2 with 1 for shift
+        lsl     r2,#9                         @  left shift 1 to bit pos 9 (FSEL3)
+        orr     r1,r1,r2                      @  add config to bit mask in r1
+
+        mov     r2,#1                         @ GPIO4: prepare r2 with 1 for shift
+        lsl     r2,#12                        @  left shift 1 to bit pos 12 (FSEL4)
+        orr     r1,r1,r2                      @  add config to bit mask in r1
+
+        mov     r2,#1                         @ GPIO5: prepare r2 with 1 for shift
+        lsl     r2,#15                        @  left shift 1 to bit pos 15 (FSEL5)
+        orr     r1,r1,r2                      @  add config to bit mask in r1
+
+        mov     r2,#1                         @ GPIO6: prepare r2 with 1 for shift
+        lsl     r2,#18                        @  left shift 1 to bit pos 18 (FSEL6)
+        orr     r1,r1,r2                      @  add config to bit mask in r1
+
+        mov     r2,#1                         @ GPIO7: prepare r2 with 1 for shift
+        lsl     r2,#21                        @  left shift 1 to bit pos 21 (FSEL7)
+        orr     r1,r1,r2                      @  add config to bit mask in r1
+
+        str     r1,[GPIOREG]                  @ Store config to GPFSEL0 (base + 0)
+
+@ GPFSEL1, GPIOs 10-19 (11, 12, 13, 16, 17, 18, 19 needed):
+
+        mov     r1,#0                         @ make sure r1 is 0 -> bit mask
+
+        mov     r2,#1                         @ GPIO11: prepare r2 with 1 for shift
+        lsl     r2,#3                         @  left shift 1 to bit pos 3 (FSEL11)
+        orr     r1,r1,r2                      @  add config to bit mask in r1
+
+        mov     r2,#1                         @ GPIO12: prepare r2 with 1 for shift
+        lsl     r2,#6                         @  left shift 1 to bit pos 6 (FSEL12)
+        orr     r1,r1,r2                      @  add config to bit mask in r1
+
+        mov     r2,#1                         @ GPIO13: prepare r2 with 1 for shift
+        lsl     r2,#9                         @  left shift 1 to bit pos 9 (FSEL13)
+        orr     r1,r1,r2                      @  add config to bit mask in r1
+
+        mov     r2,#1                         @ GPIO16: prepare r2 with 1 for shift
+        lsl     r2,#18                         @  left shift 1 to bit pos 18 (FSEL16)
+        orr     r1,r1,r2                      @  add config to bit mask in r1
+
+        mov     r2,#1                         @ GPIO17: prepare r2 with 1 for shift
+        lsl     r2,#21                        @  left shift 1 to bit pos 21 (FSEL17)
+        orr     r1,r1,r2                      @  add config to bit mask in r1
+
+        mov     r2,#1                         @ GPIO18: prepare r2 with 1 for shift
+        lsl     r2,#24                         @  left shift 1 to bit pos 24 (FSEL18)
+        orr     r1,r1,r2                      @  add config to bit mask in r1
+
+        mov     r2,#1                         @ GPIO19: prepare r2 with 1 for shift
+        lsl     r2,#27                        @  left shift 1 to bit pos 27 (FSEL19)
+        orr     r1,r1,r2                      @  add config to bit mask in r1
+
+        str     r1,[GPIOREG,#4]               @ Store config to GPFSEL1 (base + 4)       
+
+@ GPFSEL2, GPIOs 20-29 (26, 27 needed)
+
+        mov     r1,#0                         @ make sure r1 is 0 -> bit mask
+
+        mov     r2,#1                         @ GPIO26: prepare r2 with 1 for shift
+        lsl     r2,#18                        @  left shift 1 to bit pos 18 (FSEL26)
+        orr     r1,r1,r2                      @  add config to bit mask in r1
+
+        mov     r2,#1                         @ GPIO27: prepare r2 with 1 for shift
+        lsl     r2,#21                        @  left shift 1 to bit pos 21 (FSEL27)
+        orr     r1,r1,r2                      @  add config to bit mask in r1
+
+        str     r1,[GPIOREG,#8]               @ Store config to GPFSEL2 (base + 8)
+
+
 @ --------------------------------------------------------------------
 @ Move Outlet Motor to starting position. The Hall sensor only returns 
 @ true/false, so in order to find the center the motor turns until true
