@@ -280,24 +280,23 @@ main:
 sort:
 		bl 		  hw_init
 
-		mov		  WAITREG, #1000			  @ wait 1000ms
-		bl		  wait
-
-		bl		  turn_out
-
-		bl		  turn_cw
-
 		bl	      startposOUT_init
-
-		mov		  R7, #1
-		svc		  0
-
 
 		mov		  r0, #19					  @ select Feeder StartStop pin
 		bl        gp_set					  @ start Feeder
 
 		mov		  WAITREG, #1000			  @ wait 1000ms
 		bl		  wait
+
+		@ if bedingungen
+		@ turn cw wheel
+		@ wait
+		@ in / decrease (opt)
+		@ outlet + lds
+		@ b if bedingungen
+
+		mov		  R7, #1
+		svc		  0
 
 
 @@ --------------------------------------------------------------------
