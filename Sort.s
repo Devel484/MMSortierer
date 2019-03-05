@@ -1,7 +1,7 @@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @	Sort.s                                                                     @
 @ -------------------------------------------------------------------------------- @
-@	Author: Niklas Haderer, Pascal Kelbling, Christoph Hund, Moritz Fluechter  @
+@	Author: Niclas Haderer, Pascal Kelbling, Christoph Hund, Moritz Fluechter  @
 @	Target: Raspberri Pi, Raspbian						   @
 @	Project: MM-Sorting-Machine						   @
 @	Date: 27.02.2019							   @
@@ -27,6 +27,7 @@
         .equ      PERIPH,0x20000000           @ RPi zero & 1 peripherals
         .equ      GPIO_OFFSET,0x200000        @ start of GPIO device
         .equ      TIMERIR_OFFSET,0xB000       @ start f´of IR and timer
+        .equ	  SYSTIMER_OFFSET,0x3000	  @ start of sys timer lower 32 bit
         .equ      O_FLAGS,O_RDWR|O_SYNC       @ open file flags
         .equ      PROT_RDWR,PROT_READ|PROT_WRITE
         .equ      NO_PREF,0
@@ -40,9 +41,7 @@
         .equ      DIR_CW,16                   @ pin number of dirCW
         .equ      DIR_OUT,26                  @ pin number of dirOUT
         .equ      CENTER_CWSPEED,10           @ wait in ms for centering CW
-        .equ      CENTER_OUTSPEED,20          @ wait in ms for centering OUT         
-
-
+        .equ      CENTER_OUTSPEED,20          @ wait in ms for centering OUT
 
 TMPREG  .req      r5
 RETREG  .req      r6
@@ -66,6 +65,17 @@ memMsgGpio:
         .asciz    "(GPIO) Using memory at %p\n"
 memMsgTimerIR:
         .asciz    "(Timer + IR) Using memory at %p\n"
+memMsgSysTimer:
+        .asciz    "(SysTimer) Using memory at %p\n"
+msgSysTimerDebug:
+        .asciz    "(SysTimer) lower 32 bit systimer %i\n"
+msgSysTimerWait:
+        .asciz    "(SysTimer) wait %i us\n"
+msgSysTimerSpread:
+        .asciz    "(SysTimer) spread %i us\n"
+IntroMsg:
+        .asciz    "Hallo Christoph"
+
 
         .balign   4
 gpio_mmap_adr:
@@ -75,6 +85,10 @@ gpio_mmap_fd:
 timerir_mmap_adr:
         .word     0
 timerir_mmap_fd:
+        .word     0
+systimer_mmap_adr:
+        .word     0
+systimer_mmap_fd:
         .word     0
 
 @ - END OF DATA SECTION @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -207,12 +221,87 @@ main:
         ldr       lr, [sp, #12]               @         lr
         add       sp, sp, #16                 @ restore sp
 
-        @ initialize all other hardware
-        b         hw_init
+        @ GET SYSTIMER VIRTUAL MEMORY ---------------------------------------
+        @ create backup and reserve stack space
+        sub       sp, sp, #16                 @ space for saving regs
+        str       r4, [sp, #0]                @ save r4
+        str       r5, [sp, #4]                @      r5
+        str       fp, [sp, #8]                @      fp
+        str       lr, [sp, #12]               @      lr
+        add       fp, sp, #12                 @ set our frame pointer
+        sub       sp, sp, #STACK_ARGS         @ sp on 8-byte boundary
+
+        @ open /dev/gpiomem for read/write and syncing
+        ldr       r0, =mem                    @ address of /dev/mem
+        ldr       r1, openMode                @ flags for accessing device
+        bl        open
+        mov       r4, r0                      @ use r4 for file descriptor
+
+        @ display file descriptor
+        ldr       r0, =fdMsg                  @ format for printf
+        mov       r1, r4                      @ file descriptor
+        bl        printf
+
+        @ map the lower 32bit sys timer to a virtual memory location so we can access them
+        str       r4, [sp, #FILE_DESCRP_ARG]  @ /dev/mem file descriptor
+        ldr       r0, sysTimer                @ address of lower 32 bit systimer
+        str       r0, [sp, #DEVICE_ARG]       @ location of lower 32 bit systimer
+        mov       r0, #NO_PREF                @ let kernel pick memory
+        mov       r1, #PAGE_SIZE              @ get 1 page of memory
+        mov       r2, #PROT_RDWR              @ read/write this memory
+        mov       r3, #MAP_SHARED             @ share with other processes
+        bl        mmap
+
+        @ save virtual memory address
+        ldr       r1, =systimer_mmap_adr      @ store timer + IR mmap (virtual address)
+        str       r0, [r1]
+        ldr       r1, =systimer_mmap_fd       @ store the file descriptor
+        str       r4, [r1]
+
+        ldr       r6, [r1]
+        mov       r1, r0                      @ display virtual address
+        ldr       r0, =memMsgSysTimer
+        bl        printf
+        mov       r1, r6
+        ldr       r0, =memMsgSysTimer
+        bl        printf
+
+        @ restore sp and free stack
+        add       sp, sp, #STACK_ARGS         @ fix sp
+        ldr       r4, [sp, #0]                @ restore r4
+        ldr       r5, [sp, #4]                @      r5
+        ldr       fp, [sp, #8]                @         fp
+        ldr       lr, [sp, #12]               @         lr
+        add       sp, sp, #16                 @ restore sp
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@				main program						@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+sort:
+		bl 		  hw_init
+
+		mov		  WAITREG, #1000			  @ wait 1000ms
+		bl		  wait
+
+		bl		  turn_out
+
+		bl		  turn_cw
+
+		bl	      startposOUT_init
+
+		mov		  R7, #1
+		svc		  0
 
 
-@ --------------------------------------------------------------------
-@ Inititalize all needed GPIOs (see above), Set Input/Output mode, 
+		mov		  r0, #19					  @ select Feeder StartStop pin
+		bl        gp_set					  @ start Feeder
+
+		mov		  WAITREG, #1000			  @ wait 1000ms
+		bl		  wait
+
+
+@@ --------------------------------------------------------------------
+@ Inititalize all needed GPIOs (see above), Set Input/Output mode,
 @ Set starting values of some Pins (11, 17)
 @  param: none
 @  return: none
@@ -222,7 +311,7 @@ hw_init:
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @	Table of all needed GPIOs for init in _start:
 @
-@	GPIO	|	Signal		|	Hardware	
+@	GPIO	|	Signal		|	Hardware
 @	--------------------------------------------------------------
 @	Signals to control 7-Segment Display:
 @	2	|	Output		|	SER	7-Segment
@@ -274,21 +363,21 @@ hw_init:
 @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
-        
-        
+
+
         ldr       r1, =gpio_mmap_adr          @ reload the addr for accessing the GPIOs
         ldr       GPIOREG, [r1]               @ load GPIO bas addr into GPIOREG
 
-        
+
 
 @Configure Output pins
-@ Each pin has a 3 bit config mask stored in GPFSEL0 to GPFSEL5 (32bit per register => 10 pins per register)
-@ 000 -> input, 001 -> output (simplest configuration)
+@ Each pin has a 3 bit config mask stored in GPFSEL1 to GPFSEL5 (32bit per register)
+@ 000 -> input, 001 -> output
 @ thus only output pins need to be configured
 
 @ GPFSEL0, GPIOs 0-9 (Pins 2, 3, 4, 5, 6, 7 needed as Output):
 
-        mov     r1,#0                         @ make sure r1 is 0, r1 will be used as bit mask
+        mov     r1,#0                         @ make sure r1 is 0 -> bit mask
 
         mov     r2,#1                         @ GPIO2: prepare r2 with 1 for shift
         lsl     r2,#6                         @  left shift 1 to bit pos 6 (FSEL2)
@@ -348,7 +437,7 @@ hw_init:
         lsl     r2,#27                        @  left shift 1 to bit pos 27 (FSEL19)
         orr     r1,r1,r2                      @  add config to bit mask in r1
 
-        str     r1,[GPIOREG,#4]               @ Store config to GPFSEL1 (base + 4)       
+        str     r1,[GPIOREG,#4]               @ Store config to GPFSEL1 (base + 4)
 
 @ GPFSEL2, GPIOs 20-29 (26, 27 needed)
 
@@ -364,8 +453,10 @@ hw_init:
 
         str     r1,[GPIOREG,#8]               @ Store config to GPFSEL2 (base + 8)
 
+        bx		lr
+
 @ --------------------------------------------------------------------
-@ Move Outlet Motor to starting position. The Hall sensor only returns 
+@ Move Outlet Motor to starting position. The Hall sensor only returns
 @ true/false, so in order to find the center the motor turns until true
 @ starts counting its steps, turns until false and then turns back half
 @ of the steps counted to center itself
@@ -373,6 +464,7 @@ hw_init:
 @  return: none
 @ --------------------------------------------------------------------
 startposOUT_init:
+		push	{lr}
         mov     r0,#DIR_OUT          @ number of Outlet Dir pin
         bl      gp_set          @ Set Outlet motor direction
 
@@ -385,7 +477,7 @@ startpos_outlet:
         @ Go back half the amount of steps (right shift numer of steps)
 
         mov     r0,#1                   @ param: turn 1 step
-        mov     r1,#CENTER_OUTSPEED     @ param: wait 20ms 
+        mov     r1,#CENTER_OUTSPEED     @ param: wait 20ms
         bl      turn_out_step           @ turn outlet
 
         mov     r0,#HALL_OUT            @ hall sensor pin number
@@ -401,7 +493,7 @@ startpos_outlet:
 startpos_OUTinside:
 
         mov     r0,#1                   @ param: turn 1 step
-        mov     r1,#CENTER_OUTSPEED     @ param: wait 20ms 
+        mov     r1,#CENTER_OUTSPEED     @ param: wait 20ms
         bl      turn_out_step           @ turn outlet
 
         add     r1,#1                   @ increment counter
@@ -414,7 +506,7 @@ startpos_OUTinside:
 
 startpos_OUTcenter:
         mov     r0,#1                   @ param: turn 1 step
-        mov     r1,#CENTER_OUTSPEED                  @ param: wait 20ms 
+        mov     r1,#CENTER_OUTSPEED                  @ param: wait 20ms
         bl      turn_out_step           @ turn outlet
 
         sub     r1,#1                  @ reduce steps counter
@@ -439,7 +531,7 @@ startpos_cw:
         @ Go back half the amount of steps (right shift numer of steps)
 
         mov     r0,#1                   @ param: turn 1 step
-        mov     r1,#CENTER_CWSPEED      @ param: wait 20ms 
+        mov     r1,#CENTER_CWSPEED      @ param: wait 20ms
         bl      turn_cw_step            @ turn cw
 
         mov     r0,#HALL_CW             @ hall sensor pin number
@@ -451,7 +543,7 @@ startpos_cw:
 
 startpos_CWinside:
         mov     r0,#1                   @ param: turn 1 step
-        mov     r1,#CENTER_CWSPEED      @ param: wait 20ms 
+        mov     r1,#CENTER_CWSPEED      @ param: wait 20ms
         bl      turn_cw_step            @ turn cw
 
         add     r1,#1                   @ increment counter
@@ -466,15 +558,185 @@ startpos_CWinside:
 
 startpos_CWcenter:
         mov     r0,#1                   @ param: turn 1 step
-        mov     r1,#CENTER_CWSPEED      @ param: wait 20ms 
+        mov     r1,#CENTER_CWSPEED      @ param: wait 20ms
         bl      turn_cw_step            @ turn outlet
 
         sub     r1,#1                  @ reduce steps counter
         cmp     r1,#0                  @ if != 0: still moving, repeat
         bne     startpos_CWcenter      @ if  = 0: in center, stop
 
+		pop		{lr}
+        bx		lr
+
+@ --------------------------------------------------------------------
+@ Move Outlet with given parameters
+@  param: r0 = steps, r1 = wait ms
+@  return: none
+@ --------------------------------------------------------------------
+turn_out_step:
+		mov		  TMPREG, r0
+		push      {lr}
+		mov 	  r0, #27					@ activate co process
+		bl	      gp_set					@ call gp_set
+		mov 	  r0, #11					@ activate outlet engine
+		bl	      gp_set					@ call gp_set
+
+turn_out_step_sub:
+		mov 	  r0, #12					@ set step high
+		bl		  gp_set					@ call gp_set
+		mov 	  WAITREG, r1		    	@ Wait r1 ms
+		bl		  wait						@ Start wait
+		mov 	  r0, #12					@ set step high
+		bl		  gp_clear					@ set step low
+		mov 	  WAITREG, r1		    	@ Wait r1 ms
+		bl		  wait						@ Start wait
+		sub		  TMPREG, TMPREG, #1	    @ Decrease step counter
+		cmp		  TMPREG, #0				@ left steps == 0?
+		bne		  turn_out_step_sub		    @ if not again
+
+		mov 	  r0, #11					@ deactivate outlet engine
+		bl	      gp_clear					@ clear output pin
+		mov 	  r0, #27					@ deactivate co processor
+		bl	      gp_clear					@ clear output pin
+		pop       {lr}
+		bx 		  lr						@ close branch
+
+@ --------------------------------------------------------------------
+@ Move Outlet 67°
+@  param: none
+@  return: none
+@ --------------------------------------------------------------------
+turn_out:
+		mov		  TMPREG, #67				@ do 67 steps ~ 60°
+		push      {lr}
+		mov 	  r0, #27					@ activate co process
+		bl	      gp_set					@ call gp_set
+		mov 	  r0, #11					@ activate outlet engine
+		bl	      gp_set					@ call gp_set
+
+turn_out_sub:
+		mov 	  r0, #12					@ set step high
+		bl		  gp_set					@ call gp_set
+		mov 	  WAITREG, #3		    	@ Wait 10 ms
+		bl		  wait						@ Start wait
+		mov 	  r0, #12					@ set step high
+		bl		  gp_clear					@ set step low
+		mov 	  WAITREG, #3		    	@ Wait 10 ms
+		bl		  wait						@ Start wait
+		sub		  TMPREG, TMPREG, #1	    @ Decrease step counter
+		cmp		  TMPREG, #0				@ left steps == 0?
+		bne		  turn_out_sub			    @ if not again
+
+		mov 	  r0, #11					@ deactivate outlet engine
+		bl	      gp_clear					@ clear output pin
+		mov 	  r0, #27					@ deactivate co processor
+		bl	      gp_clear					@ clear output pin
+		pop       {lr}
+		bx 		  lr						@ close branch
 
 
+turn_cw_step:
+@ --------------------------------------------------------------------
+@ Move Color-Wheel steps
+@  param : r0 = steps, r1 = wait_ms
+@  return: none
+@ --------------------------------------------------------------------
+		mov		  TMPREG, r0				@ Store 400 steps
+		push      {lr}
+		mov 	  r0, #27					@ activate co process
+		bl	      gp_set					@ call gp_set
+		mov 	  r0, #17					@ activate color wheel engine
+		bl	      gp_set					@ call gp_set
+
+turn_cw_step_sub:
+		mov 	  r0, #13					@ set step high
+		bl		  gp_set					@ call gp_set
+		mov 	  WAITREG, r1		    	@ Wait r1 ms
+		bl		  wait						@ Start wait
+		mov 	  r0, #13					@ set step high
+		bl		  gp_clear					@ set step low
+		mov 	  WAITREG, r1		    	@ Wait r1 ms
+		bl		  wait						@ Start wait
+		sub		  TMPREG, TMPREG, #1	    @ Decrease step counter
+		cmp		  TMPREG, #0				@ left steps == 0?
+		bne		  turn_cw_step_sub		    @ if not again
+
+		mov 	  r0, #17					@ deactivate color wheel engine
+		bl	      gp_clear					@ clear output pin
+		mov 	  r0, #27					@ deactivate co processor
+		bl	      gp_clear					@ clear output pin
+		pop       {lr}
+		bx 		  lr						@ close branch
+
+@ --------------------------------------------------------------------
+@ Move Color-Wheel 90°
+@  return: none
+@ --------------------------------------------------------------------
+turn_cw:
+		mov		  TMPREG, #400				@ Store 400 steps
+		push      {lr}
+		mov 	  r0, #16					@ rotate clockwise
+		bl	      gp_clear					@ call gp_clear
+		mov 	  r0, #27					@ activate co process
+		bl	      gp_set					@ call gp_set
+		mov 	  r0, #17					@ activate color wheel engine
+		bl	      gp_set					@ call gp_set
+
+turn_cw_sub:
+		mov 	  r0, #13					@ set step high
+		bl		  gp_set					@ call gp_set
+		mov 	  WAITREG, #3		    	@ Wait 3 ms
+		bl		  wait						@ Start wait
+		mov 	  r0, #13					@ set step high
+		bl		  gp_clear					@ set step low
+		mov 	  WAITREG, #3		    	@ Wait 3 ms
+		bl		  wait						@ Start wait
+		sub		  TMPREG, TMPREG, #1	    @ Decrease step counter
+		cmp		  TMPREG, #0				@ left steps == 0?
+		bne		  turn_cw_sub				@ if not again
+
+		mov 	  r0, #27					@ deactivate color wheel engine
+		bl	      gp_clear					@ clear output pin
+		mov 	  r0, #17					@ deactivate co processor
+		bl	      gp_clear					@ clear output pin
+		pop       {lr}
+		bx 		  lr						@ close branch
+
+
+@ --------------------------------------------------------------------
+@ Wait microseconds before continue. Using SysTimer instead of Timer Functions
+@  param: WAITREG in microseconds
+@  return: none
+@ --------------------------------------------------------------------
+@wait:
+@		ldr       r3, =systimer_mmap_adr      @ load address of lower 32 bit sys timer
+@        ldr       r4, [r3, #4]					  @ store lower 32 bit sys timer
+@
+@		@ start wait function
+@wait_sub:
+@        ldr       r2, [r3, #4]					  @ load current lower 32bit sys time in r2
+@
+@        sub		  r2, r2, r4			  	  @ calculate spread between intitial time(r4) and current time(r2)
+@        cmp		  r2, WAITREG				  @ comp spread with parameter
+@
+@        blt		  wait_sub					  @ again if spread < parameter
+@
+@        bx		  lr						  @ return
+
+wait:
+		mov		r0, #237
+		lsl		r0, #11							  @ 485376 steps
+
+wait_do:
+		subs	r0, #1
+		cmp		r0, #0
+		bne		wait_do
+
+		subs	WAITREG, #1
+		cmp		WAITREG, #0
+		bne		wait
+
+		bx		lr
 
 @ --------------------------------------------------------------------
 @ Fetch Color from Sensor. Will return pins 22, 23, 24 as one binary number.
@@ -505,11 +767,11 @@ get_color:
 @  param: r0 - PinNumber
 @  return: none
 @ --------------------------------------------------------------------
-gp_set:  
+gp_set:
         mov     r1,#1                  @ prepare bitmask
         lsl     r1,r0                  @ shift 1 to position of pin passed in r0
         str     r1,[GPIOREG,#0x1C]     @ Write mask to GPSET0
-        bx      lr                     @ return 
+        bx      lr                     @ return
 @ --------------------------------------------------------------------
 @  Clears the pin with number saved in r0 (Pull Down)
 @  param: r0 - PinNumber
@@ -517,15 +779,15 @@ gp_set:
 @ --------------------------------------------------------------------
 gp_clear:
         mov     r1,#1                @ prepare bitmask
-        lsl     r1,r0                @ shift to position of pin         
+        lsl     r1,r0                @ shift to position of pin
         str     r1,[GPIOREG,#0x28]   @ Write to GPCLR0
         bx      lr                   @ return
 
 @ --------------------------------------------------------------------
 @  Reads the level at the pin number passed in r0. To do so it ands a bit
-@       mask with the register (GPLEV0). 
-@  Example:     
-@   Selected Pin:    00001000        00001000      
+@       mask with the register (GPLEV0).
+@  Example:
+@   Selected Pin:    00001000        00001000
 @   GPLEV0:      AND 10011001        10010001
 @                  = 00001000        00000000
 @   after rsl     -> 00000001        00000000
@@ -535,14 +797,17 @@ gp_clear:
 @ --------------------------------------------------------------------
 gp_read:
         mov     r1,#1                 @ prepare bitmask
-        lsl     r1,r0                 @ shift to position of pin  
-        and     r1,r1,[GPIOREG,#0x34] @ If the pin is set, r1 will contain a 1
-                                      @ at that place    
-        rsl     r1,r0                 @ right shift to bring possible 1 to end
-                                      @ r1 is now either 1 or 0
+        lsl     r1,r0                 @ shift to position of pin
+        ldr 	r2,[GPIOREG,#0x34]
+        and     r1,r1,r2	          @ r1 is now either 1 or 0
         mov     r1,RLDREG             @ mov result to return register
         bx      lr                    @ return
 
+@ --------------------------------------------------------------------
+@ Main Loop to control the sorting process
+@  param: none
+@  return: none
+@ --------------------------------------------------------------------
 
 @ --------------------------------------------------------------------------------------------------------------------
 @
@@ -557,6 +822,8 @@ gpio:
         .word     PERIPH+GPIO_OFFSET
 timerIR:
         .word     PERIPH+TIMERIR_OFFSET
+sysTimer:
+		.word     PERIPH+SYSTIMER_OFFSET
 
 
 @ - END OF TEXT SECTION   @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
