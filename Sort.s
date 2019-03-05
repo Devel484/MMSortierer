@@ -11,6 +11,7 @@
 @ and controlling the motors accordingly.					   @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+
 @ Constants for assembler
 @ The following are defined in /usr/include/asm-generic/fcntl.h:
 @ Note that the values are specified in octal.
@@ -274,13 +275,15 @@ main:
         ldr       lr, [sp, #12]               @         lr
         add       sp, sp, #16                 @ restore sp
 
+
+
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @				main program						@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 sort:
 		bl 		  hw_init
 
-		bl	      startposOUT_init
+		bl	      startpos_out_init
 
 		mov		  r0, #19					  @ select Feeder StartStop pin
 		bl        gp_set					  @ start Feeder
@@ -452,7 +455,7 @@ hw_init:
 
         str     r1,[GPIOREG,#8]               @ Store config to GPFSEL2 (base + 8)
 
-        bx		lr
+        bx		  lr
 
 @ --------------------------------------------------------------------
 @ Move Outlet Motor to starting position. The Hall sensor only returns
@@ -462,14 +465,12 @@ hw_init:
 @  param: none
 @  return: none
 @ --------------------------------------------------------------------
-startposOUT_init:
-		push	{lr}
+startpos_out_init:
+		    push	  {lr}
         mov     r0,#DIR_OUT          @ number of Outlet Dir pin
         bl      gp_set          @ Set Outlet motor direction
 
-
-startpos_outlet:
-
+startpos_out:
         @ Idea:
         @ Move until Hall sensor activates.
         @ Once activates count the steps until it deactivates.
@@ -484,13 +485,12 @@ startpos_outlet:
         cmp     r9,#0                   @ if != 0: out of FoV, repeat
                                         @ if = 0: inside FoV, start counting
         mov     r1,#0                   @ reset counter r1
-        bne     startpos_outlet         @ start counting steps
+        bne     startpos_out         @ start counting steps
 
         mov     r0,#DIR_OUT             @ number of Outlet Dir pin
         bl      gp_clear                @ invert outlet turn direction
 
-startpos_OUTinside:
-
+startpos_out_inside:
         mov     r0,#1                   @ param: turn 1 step
         mov     r1,#CENTER_OUTSPEED     @ param: wait 20ms
         bl      turn_out_step           @ turn outlet
@@ -500,17 +500,17 @@ startpos_OUTinside:
         bl      gp_read                 @ check hall sensor, r0 unchanged
 
         cmp     r9,#0                   @ if = 0: inside FoV, repeat
-        beq     startpos_OUTinside      @ if != 0: outside FoV, stop counting
+        beq     startpos_out_inside      @ if != 0: outside FoV, stop counting
         lsr     r1,#1                   @ divide steps counted by 2
 
-startpos_OUTcenter:
+startpos_out_center:
         mov     r0,#1                   @ param: turn 1 step
         mov     r1,#CENTER_OUTSPEED                  @ param: wait 20ms
         bl      turn_out_step           @ turn outlet
 
         sub     r1,#1                  @ reduce steps counter
         cmp     r1,#0                  @ if != 0: still moving, repeat
-        bne     startpos_OUTcenter     @ if  = 0: in center, stop
+        bne     startpos_out_center     @ if  = 0: in center, stop
 
 
 
@@ -519,7 +519,7 @@ startpos_OUTcenter:
 @  param: none
 @  return: none
 @ --------------------------------------------------------------------
-startposCW_init:
+startpos_cw_init:
         mov     r0,#DIR_CW          @ number of Outlet Dir pin
         bl      gp_set          @ Set Outlet motor direction
 
@@ -540,7 +540,7 @@ startpos_cw:
         mov     r1,#0                   @ reset counter r1
         bne     startpos_cw             @ start counting steps
 
-startpos_CWinside:
+startpos_cw_inside:
         mov     r0,#1                   @ param: turn 1 step
         mov     r1,#CENTER_CWSPEED      @ param: wait 20ms
         bl      turn_cw_step            @ turn cw
@@ -549,23 +549,24 @@ startpos_CWinside:
         mov     r0,#HALL_CW             @ hall sensor pin number
         bl      gp_read                 @ check hall sensor, r0 unchanged
         cmp     r9,#0                   @ if = 0: inside FoV, repeat
-        beq     startpos_CWinside       @ if != 0: outside FoV, stop counting
+        beq     startpos_cw_inside      @ if != 0: outside FoV, stop counting
         lsr     r1,#1                   @ divide steps counted by 2
 
         mov     r0,#DIR_CW              @ number of CW Dir pin
         bl      gp_clear                @ invert outlet turn direction
 
-startpos_CWcenter:
+startpos_cw_center:
         mov     r0,#1                   @ param: turn 1 step
         mov     r1,#CENTER_CWSPEED      @ param: wait 20ms
         bl      turn_cw_step            @ turn outlet
 
         sub     r1,#1                  @ reduce steps counter
         cmp     r1,#0                  @ if != 0: still moving, repeat
-        bne     startpos_CWcenter      @ if  = 0: in center, stop
+        bne     startpos_cw_center      @ if  = 0: in center, stop
 
-		pop		{lr}
+		    pop		{lr}
         bx		lr
+
 
 @ --------------------------------------------------------------------
 @ Move Outlet with given parameters
@@ -599,6 +600,7 @@ turn_out_step_sub:
 		bl	      gp_clear					@ clear output pin
 		pop       {lr}
 		bx 		  lr						@ close branch
+
 
 @ --------------------------------------------------------------------
 @ Move Outlet 67°
@@ -634,12 +636,12 @@ turn_out_sub:
 		bx 		  lr						@ close branch
 
 
-turn_cw_step:
 @ --------------------------------------------------------------------
 @ Move Color-Wheel steps
 @  param : r0 = steps, r1 = wait_ms
 @  return: none
 @ --------------------------------------------------------------------
+turn_cw_step:
 		mov		  TMPREG, r0				@ Store 400 steps
 		push      {lr}
 		mov 	  r0, #27					@ activate co process
