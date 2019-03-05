@@ -34,6 +34,15 @@
         .equ      FILE_DESCRP_ARG,0           @ file descriptor
         .equ      DEVICE_ARG,4                @ device address
         .equ      STACK_ARGS,8                @ sp already 8-byte aligned
+@ Center CW and Outlet Constants:
+        .equ      HALL_CW,20                  @ pin number of hallCW
+        .equ      HALL_OUT,21                 @ pin number of hallOUT
+        .equ      DIR_CW,16                   @ pin number of dirCW
+        .equ      DIR_OUT,26                  @ pin number of dirOUT
+        .equ      CENTER_CWSPEED,10           @ wait in ms for centering CW
+        .equ      CENTER_OUTSPEED,20          @ wait in ms for centering OUT         
+
+
 
 TMPREG  .req      r5
 RETREG  .req      r6
@@ -273,13 +282,13 @@ hw_init:
         
 
 @Configure Output pins
-@ Each pin has a 3 bit config mask stored in GPFSEL1 to GPFSEL5 (32bit per register)
-@ 000 -> input, 001 -> output
+@ Each pin has a 3 bit config mask stored in GPFSEL0 to GPFSEL5 (32bit per register => 10 pins per register)
+@ 000 -> input, 001 -> output (simplest configuration)
 @ thus only output pins need to be configured
 
 @ GPFSEL0, GPIOs 0-9 (Pins 2, 3, 4, 5, 6, 7 needed as Output):
 
-        mov     r1,#0                         @ make sure r1 is 0 -> bit mask
+        mov     r1,#0                         @ make sure r1 is 0, r1 will be used as bit mask
 
         mov     r2,#1                         @ GPIO2: prepare r2 with 1 for shift
         lsl     r2,#6                         @  left shift 1 to bit pos 6 (FSEL2)
@@ -355,7 +364,6 @@ hw_init:
 
         str     r1,[GPIOREG,#8]               @ Store config to GPFSEL2 (base + 8)
 
-
 @ --------------------------------------------------------------------
 @ Move Outlet Motor to starting position. The Hall sensor only returns 
 @ true/false, so in order to find the center the motor turns until true
@@ -364,14 +372,109 @@ hw_init:
 @  param: none
 @  return: none
 @ --------------------------------------------------------------------
+startposOUT_init:
+        mov     r0,#DIR_OUT          @ number of Outlet Dir pin
+        bl      gp_set          @ Set Outlet motor direction
+
+
 startpos_outlet:
+
+        @ Idea:
+        @ Move until Hall sensor activates.
+        @ Once activates count the steps until it deactivates.
+        @ Go back half the amount of steps (right shift numer of steps)
+
+        mov     r0,#1                   @ param: turn 1 step
+        mov     r1,#CENTER_OUTSPEED     @ param: wait 20ms 
+        bl      turn_out_step           @ turn outlet
+
+        mov     r0,#HALL_OUT            @ hall sensor pin number
+        bl      gp_read                 @ get hall sensor value
+        cmp     r9,#0                   @ if != 0: out of FoV, repeat
+                                        @ if = 0: inside FoV, start counting
+        mov     r1,#0                   @ reset counter r1
+        bne     startpos_outlet         @ start counting steps
+
+        mov     r0,#DIR_OUT             @ number of Outlet Dir pin
+        bl      gp_clear                @ invert outlet turn direction
+
+startpos_OUTinside:
+
+        mov     r0,#1                   @ param: turn 1 step
+        mov     r1,#CENTER_OUTSPEED     @ param: wait 20ms 
+        bl      turn_out_step           @ turn outlet
+
+        add     r1,#1                   @ increment counter
+        mov     r0,#HALL_OUT            @ hall sensor pin number
+        bl      gp_read                 @ check hall sensor, r0 unchanged
+
+        cmp     r9,#0                   @ if = 0: inside FoV, repeat
+        beq     startpos_OUTinside      @ if != 0: outside FoV, stop counting
+        lsr     r1,#1                   @ divide steps counted by 2
+
+startpos_OUTcenter:
+        mov     r0,#1                   @ param: turn 1 step
+        mov     r1,#CENTER_OUTSPEED                  @ param: wait 20ms 
+        bl      turn_out_step           @ turn outlet
+
+        sub     r1,#1                  @ reduce steps counter
+        cmp     r1,#0                  @ if != 0: still moving, repeat
+        bne     startpos_OUTcenter     @ if  = 0: in center, stop
+
+
 
 @ --------------------------------------------------------------------
 @ Move Color-Wheel to starting position, same principle as with Outlet
 @  param: none
 @  return: none
 @ --------------------------------------------------------------------
+startposCW_init:
+        mov     r0,#DIR_CW          @ number of Outlet Dir pin
+        bl      gp_set          @ Set Outlet motor direction
+
 startpos_cw:
+        @ Idea:
+        @ Move until Hall sensor activates.
+        @ Once activates count the steps until it deactivates.
+        @ Go back half the amount of steps (right shift numer of steps)
+
+        mov     r0,#1                   @ param: turn 1 step
+        mov     r1,#CENTER_CWSPEED      @ param: wait 20ms 
+        bl      turn_cw_step            @ turn cw
+
+        mov     r0,#HALL_CW             @ hall sensor pin number
+        bl      gp_read                 @ get hall sensor value
+        cmp     r9,#0                   @ if != 0: out of FoV, repeat
+                                        @ if = 0: inside FoV, start counting
+        mov     r1,#0                   @ reset counter r1
+        bne     startpos_cw             @ start counting steps
+
+startpos_CWinside:
+        mov     r0,#1                   @ param: turn 1 step
+        mov     r1,#CENTER_CWSPEED      @ param: wait 20ms 
+        bl      turn_cw_step            @ turn cw
+
+        add     r1,#1                   @ increment counter
+        mov     r0,#HALL_CW             @ hall sensor pin number
+        bl      gp_read                 @ check hall sensor, r0 unchanged
+        cmp     r9,#0                   @ if = 0: inside FoV, repeat
+        beq     startpos_CWinside       @ if != 0: outside FoV, stop counting
+        lsr     r1,#1                   @ divide steps counted by 2
+
+        mov     r0,#DIR_CW              @ number of CW Dir pin
+        bl      gp_clear                @ invert outlet turn direction
+
+startpos_CWcenter:
+        mov     r0,#1                   @ param: turn 1 step
+        mov     r1,#CENTER_CWSPEED      @ param: wait 20ms 
+        bl      turn_cw_step            @ turn outlet
+
+        sub     r1,#1                  @ reduce steps counter
+        cmp     r1,#0                  @ if != 0: still moving, repeat
+        bne     startpos_CWcenter      @ if  = 0: in center, stop
+
+
+
 
 @ --------------------------------------------------------------------
 @ Fetch Color from Sensor. Will return pins 22, 23, 24 as one binary number.
