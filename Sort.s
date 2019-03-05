@@ -374,10 +374,27 @@ startpos_outlet:
 startpos_cw:
 
 @ --------------------------------------------------------------------
-@ Main Loop to control the sorting process
+@ Fetch Color from Sensor. Will return pins 22, 23, 24 as one binary number.
+@  0 | 0 | 0 <-> Bit2 | Bit1 | Bit0
+@ The reult is a decimal number between 0 and 7, because this 0 and 7 are undefined,
+@ the number can be read as a position for the outlet (1-6)
 @  param: none
-@  return: none
+@  return: r9 - color position
 @ --------------------------------------------------------------------
+get_color:
+        mov     r0,#22                @ set param pin number for gp_read
+        bl      gp_read               @ read pin23 level
+        mov     r1,RLDREG             @ store return val to r1
+        lsl     r1,#1                 @ make room for next pin
+        mov     r0,#23                @ set param for pin 23
+        bl      gp_read               @ read pin23 level
+        orr     r1,r1,RLDREG          @ add return val to r1
+        lsl     r1,#1                 @ make room for next pin
+        mov     r0,#24                @ set param for pin 24
+        bl      gp_read               @ read pin24 level
+        orr     r1,r1,RLDREG          @ add return val to r1
+        mov     r1,RLDREG             @ return r1
+        bx      lr
 
 
 @ --------------------------------------------------------------------
