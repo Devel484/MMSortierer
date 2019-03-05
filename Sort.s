@@ -265,8 +265,10 @@ hw_init:
 @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+        
+        
         ldr       r1, =gpio_mmap_adr          @ reload the addr for accessing the GPIOs
-        ldr       GPIOREG, [r1]
+        ldr       GPIOREG, [r1]               @ load GPIO bas addr into GPIOREG
 
         
 
@@ -376,6 +378,51 @@ startpos_cw:
 @  param: none
 @  return: none
 @ --------------------------------------------------------------------
+
+
+@ --------------------------------------------------------------------
+@  Sets the pin with number saved in r0 to 1 (Pull Up)
+@  param: r0 - PinNumber
+@  return: none
+@ --------------------------------------------------------------------
+gp_set:  
+        mov     r1,#1                  @ prepare bitmask
+        lsl     r1,r0                  @ shift 1 to position of pin passed in r0
+        str     r1,[GPIOREG,#0x1C]     @ Write mask to GPSET0
+        bx      lr                     @ return 
+@ --------------------------------------------------------------------
+@  Clears the pin with number saved in r0 (Pull Down)
+@  param: r0 - PinNumber
+@  return: none
+@ --------------------------------------------------------------------
+gp_clear:
+        mov     r1,#1                @ prepare bitmask
+        lsl     r1,r0                @ shift to position of pin         
+        str     r1,[GPIOREG,#0x28]   @ Write to GPCLR0
+        bx      lr                   @ return
+
+@ --------------------------------------------------------------------
+@  Reads the level at the pin number passed in r0. To do so it ands a bit
+@       mask with the register (GPLEV0). 
+@  Example:     
+@   Selected Pin:    00001000        00001000      
+@   GPLEV0:      AND 10011001        10010001
+@                  = 00001000        00000000
+@   after rsl     -> 00000001        00000000
+@
+@  param: r0 - PinNumber
+@  return: RLDREG - 0 or 1 (unset or set)
+@ --------------------------------------------------------------------
+gp_read:
+        mov     r1,#1                 @ prepare bitmask
+        lsl     r1,r0                 @ shift to position of pin  
+        and     r1,r1,[GPIOREG,#0x34] @ If the pin is set, r1 will contain a 1
+                                      @ at that place    
+        rsl     r1,r0                 @ right shift to bring possible 1 to end
+                                      @ r1 is now either 1 or 0
+        mov     r1,RLDREG             @ mov result to return register
+        bx      lr                    @ return
+
 
 @ --------------------------------------------------------------------------------------------------------------------
 @
