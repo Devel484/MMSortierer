@@ -37,13 +37,25 @@
         .equ      DEVICE_ARG,4                @ device address
         .equ      STACK_ARGS,8                @ sp already 8-byte aligned
 @ Center CW and Outlet Constants:
-        .equ      HALL_CW,20                  @ pin number of hallCW
-        .equ      HALL_OUT,21                 @ pin number of hallOUT
-        .equ      DIR_CW,16                   @ pin number of dirCW
-        .equ      DIR_OUT,26                  @ pin number of dirOUT
         .equ      CENTER_CWSPEED,10           @ wait in ms for centering CW
         .equ      CENTER_OUTSPEED,20          @ wait in ms for centering OUT
-        .equ      OBJ_CW, 25                  @ pin number of object sensor cw
+
+@ Pin names
+        .equ      nBTN1,8                     @ Button 1
+        .equ      nRSTOut,11                  @ toggle engine Outlet
+        .equ      StepOut,12                  @ engine step Outlet
+        .equ      StepCW,13                   @ engine step ColorWheel
+        .equ      DirCW,16                    @ direction of ColorWheel
+        .equ      nRSTCW,17                   @ toggle engine ColorWheel
+        .equ      GoStop,19                   @ toggle feeder (subprocess)
+        .equ      nHallCW,20                  @ hallsensor of ColorWheel
+        .equ      nHallOutlet,21              @ hallsensor of Outlet
+        .equ      colorBit0,22                @ colorBit 0
+        .equ      colorBit1,23                @ colorBit 1
+        .equ      colorBit2,24                @ colorBit 2
+        .equ      objCW,25                    @ objectsensor of ColorWheel
+        .equ      DirOut,26                   @ direction of Outlet
+        .equ      nSLP,27                     @ toggle co-processor for engines
 
 TMPREG  .req      r5
 RETREG  .req      r6
@@ -287,7 +299,7 @@ sort:
         bl        startpos_out_init     @ outlet position init
         bl        startpos_cw_init      @ color wheel position init
 
-        mov       r0, #19               @ select Feeder StartStop pin
+        mov       r0, #GoStop           @ select Feeder StartStop pin
         bl        gp_set                @ start Feeder
 
         mov       WAITREG, #4000        @ wait 4s
@@ -310,7 +322,7 @@ check_flag:
         b         start_process
 
 check_object_sensor:
-        mov       r0,#OBJ_CW              @ object sensor cw pin number
+        mov       r0,#objCW               @ object sensor cw pin number
         bl        gp_read                 @ get object sensor value
         cmp       RLDREG, #1              @ Check if sensor value true
         bne       check_color_sensor      @ object sensor = false
@@ -335,7 +347,7 @@ start_process:
         b         check_flag
 
 stop:
-        mov       r0, #19                 @ select Feeder StartStop pin
+        mov       r0, #GoStop             @ select Feeder StartStop pin
         bl        gp_clear                @ stop Feeder
 
         mov       R7, #1
@@ -352,8 +364,8 @@ stop:
 @ --------------------------------------------------------------------
 startpos_out_init:
         push      {lr}
-        mov       r0,#DIR_OUT          @ number of Outlet Dir pin
-        bl        gp_set               @ Set Outlet motor direction
+        mov       r0,#DirOut              @ number of Outlet Dir pin
+        bl        gp_set                  @ Set Outlet motor direction
 
 startpos_out:
         @ Idea:
@@ -365,14 +377,14 @@ startpos_out:
         mov       r1,#CENTER_OUTSPEED     @ param: wait 20ms
         bl        turn_out_step           @ turn outlet
 
-        mov       r0,#HALL_OUT            @ hall sensor pin number
+        mov       r0,#nHallOutlet         @ hall sensor pin number
         bl        gp_read                 @ get hall sensor value
-        cmp       r9,#0                   @ if != 0: out of FoV, repeat
+        cmp       RLDREG,#0               @ if != 0: out of FoV, repeat
                                           @ if = 0: inside FoV, start counting
         mov       r1,#0                   @ reset counter r1
         bne       startpos_out            @ start counting steps
 
-        mov       r0,#DIR_OUT             @ number of Outlet Dir pin
+        mov       r0,#DirOut              @ number of Outlet Dir pin
         bl        gp_clear                @ invert outlet turn direction
 
 startpos_out_inside:
@@ -381,10 +393,10 @@ startpos_out_inside:
         bl        turn_out_step           @ turn outlet
 
         add       r1,#1                   @ increment counter
-        mov       r0,#HALL_OUT            @ hall sensor pin number
+        mov       r0,#nHallOutlet         @ hall sensor pin number
         bl        gp_read                 @ check hall sensor, r0 unchanged
 
-        cmp       r9,#0                   @ if = 0: inside FoV, repeat
+        cmp       RLDREG,#0               @ if = 0: inside FoV, repeat
         beq       startpos_out_inside     @ if != 0: outside FoV, stop counting
         lsr       r1,#1                   @ divide steps counted by 2
 
@@ -409,7 +421,7 @@ startpos_out_center:
 @ --------------------------------------------------------------------
 startpos_cw_init:
         push      {lr}
-        mov       r0,#DIR_CW            @ number of Outlet Dir pin
+        mov       r0,#DirCW            @ number of Outlet Dir pin
         bl        gp_set                @ Set Outlet motor direction
 
 startpos_cw:
@@ -422,9 +434,9 @@ startpos_cw:
         mov       r1,#CENTER_CWSPEED      @ param: wait 20ms
         bl        turn_cw_step            @ turn cw
 
-        mov       r0,#HALL_CW             @ hall sensor pin number
+        mov       r0,#nHallCW             @ hall sensor pin number
         bl        gp_read                 @ get hall sensor value
-        cmp       r9,#0                   @ if != 0: out of FoV, repeat
+        cmp       RLDREG,#0               @ if != 0: out of FoV, repeat
                                           @ if = 0: inside FoV, start counting
         mov       r1,#0                   @ reset counter r1
         bne       startpos_cw             @ start counting steps
@@ -435,13 +447,13 @@ startpos_cw_inside:
         bl        turn_cw_step            @ turn cw
 
         add       r1,#1                   @ increment counter
-        mov       r0,#HALL_CW             @ hall sensor pin number
+        mov       r0,#nHallCW             @ hall sensor pin number
         bl        gp_read                 @ check hall sensor, r0 unchanged
-        cmp       r9,#0                   @ if = 0: inside FoV, repeat
+        cmp       RLDREG,#0               @ if = 0: inside FoV, repeat
         beq       startpos_cw_inside      @ if != 0: outside FoV, stop counting
         lsr       r1,#1                   @ divide steps counted by 2
 
-        mov       r0,#DIR_CW              @ number of CW Dir pin
+        mov       r0,#DirCW               @ number of CW Dir pin
         bl        gp_clear                @ invert outlet turn direction
 
 startpos_cw_center:
@@ -465,27 +477,29 @@ startpos_cw_center:
 turn_out_step:
         mov       TMPREG, r0
         push      {lr}
-        mov       r0, #27             @ activate co process
+        mov       r0, #nSLP           @ activate co process
         bl        gp_set              @ call gp_set
-        mov       r0, #11             @ activate outlet engine
+        mov       r0, #nRSTOut        @ activate outlet engine
         bl        gp_set              @ call gp_set
 
 turn_out_step_sub:
-        mov       r0, #12             @ set step high
+        mov       r0, #StepOut        @ set step high
         bl        gp_set              @ call gp_set
         mov       WAITREG, r1         @ Wait r1 ms
         bl        wait                @ Start wait
-        mov       r0, #12             @ set step high
+
+        mov       r0, #StepOut        @ set step high
         bl        gp_clear            @ set step low
         mov       WAITREG, r1         @ Wait r1 ms
         bl        wait                @ Start wait
+
         sub       TMPREG, TMPREG, #1  @ Decrease step counter
         cmp       TMPREG, #0          @ left steps == 0?
         bne       turn_out_step_sub   @ if not again
 
-        mov       r0, #11             @ deactivate outlet engine
+        mov       r0, #nRSTOut        @ deactivate outlet engine
         bl        gp_clear            @ clear output pin
-        mov       r0, #27             @ deactivate co processor
+        mov       r0, #nSLP           @ deactivate co processor
         bl        gp_clear            @ clear output pin
         pop       {lr}
         bx        lr                  @ close branch
@@ -499,30 +513,30 @@ turn_out_step_sub:
 turn_out:
         mov       TMPREG, #67         @ do 67 steps ~ 60°
         push      {lr}
-        mov       r0, #27         @ activate co process
-        bl        gp_set          @ call gp_set
-        mov       r0, #11         @ activate outlet engine
-        bl        gp_set          @ call gp_set
+        mov       r0, #nSLP           @ activate co process
+        bl        gp_set              @ call gp_set
+        mov       r0, #nRSTOut        @ activate outlet engine
+        bl        gp_set              @ call gp_set
 
 turn_out_sub:
-        mov       r0, #12         @ set step high
-        bl        gp_set          @ call gp_set
-        mov       WAITREG, #3         @ Wait 10 ms
-        bl        wait            @ Start wait
-        mov       r0, #12         @ set step high
-        bl        gp_clear          @ set step low
-        mov       WAITREG, #3         @ Wait 10 ms
-        bl        wait            @ Start wait
-        sub       TMPREG, TMPREG, #1      @ Decrease step counter
-        cmp       TMPREG, #0        @ left steps == 0?
-        bne       turn_out_sub          @ if not again
+        mov       r0, #StepOut        @ set step high
+        bl        gp_set              @ call gp_set
+        mov       WAITREG, #5         @ Wait 5 ms
+        bl        wait                @ Start wait
+        mov       r0, #StepOut        @ set step high
+        bl        gp_clear            @ set step low
+        mov       WAITREG, #5         @ Wait 5 ms
+        bl        wait                @ Start wait
+        sub       TMPREG, TMPREG, #1  @ Decrease step counter
+        cmp       TMPREG, #0          @ left steps == 0?
+        bne       turn_out_sub        @ if not again
 
-        mov       r0, #11         @ deactivate outlet engine
-        bl        gp_clear          @ clear output pin
-        mov       r0, #27         @ deactivate co processor
-        bl        gp_clear          @ clear output pin
+        mov       r0, #nRSTOut        @ deactivate outlet engine
+        bl        gp_clear            @ clear output pin
+        mov       r0, #nSLP           @ deactivate co processor
+        bl        gp_clear            @ clear output pin
         pop       {lr}
-        bx        lr            @ close branch
+        bx        lr                  @ close branch
 
 
 @ --------------------------------------------------------------------
@@ -531,53 +545,53 @@ turn_out_sub:
 @  return: none
 @ --------------------------------------------------------------------
 turn_cw_step:
-        mov       TMPREG, r0        @ Store 400 steps
+        mov       TMPREG, r0          @ Store amount steps
         push      {lr}
-        mov       r0, #27         @ activate co process
-        bl        gp_set          @ call gp_set
-        mov       r0, #17         @ activate color wheel engine
-        bl        gp_set          @ call gp_set
+        mov       r0, #nSLP           @ activate co process
+        bl        gp_set              @ call gp_set
+        mov       r0, #nRSTCW         @ activate color wheel engine
+        bl        gp_set              @ call gp_set
 
 turn_cw_step_sub:
-        mov       r0, #13         @ set step high
-        bl        gp_set          @ call gp_set
+        mov       r0, #StepCW         @ define pin
+        bl        gp_set              @ set StepCW high
         mov       WAITREG, r1         @ Wait r1 ms
-        bl        wait            @ Start wait
-        mov       r0, #13         @ set step high
-        bl        gp_clear          @ set step low
+        bl        wait                @ Start wait
+        mov       r0, #StepCW         @ define pin
+        bl        gp_clear            @ set StepCW low
         mov       WAITREG, r1         @ Wait r1 ms
-        bl        wait            @ Start wait
-        sub       TMPREG, TMPREG, #1      @ Decrease step counter
-        cmp       TMPREG, #0        @ left steps == 0?
-        bne       turn_cw_step_sub        @ if not again
+        bl        wait                @ Start wait
+        sub       TMPREG, TMPREG, #1  @ Decrease step counter
+        cmp       TMPREG, #0          @ left steps == 0?
+        bne       turn_cw_step_sub    @ if not again
 
-        mov       r0, #17         @ deactivate color wheel engine
-        bl        gp_clear          @ clear output pin
-        mov       r0, #27         @ deactivate co processor
-        bl        gp_clear          @ clear output pin
+        mov       r0, #nRSTCW         @ deactivate color wheel engine
+        bl        gp_clear            @ clear output pin
+        mov       r0, #nSLP           @ deactivate co processor
+        bl        gp_clear            @ clear output pin
         pop       {lr}
-        bx        lr            @ close branch
+        bx        lr                  @ close branch
 
 @ --------------------------------------------------------------------
 @ Move Color-Wheel 90°
 @  return: none
 @ --------------------------------------------------------------------
 turn_cw:
-        mov       TMPREG, #400        @ Store 400 steps
         push      {lr}
-        mov       r0, #16         @ rotate clockwise
-        bl        gp_clear          @ call gp_clear
-        mov       r0, #27         @ activate co process
-        bl        gp_set          @ call gp_set
-        mov       r0, #17         @ activate color wheel engine
-        bl        gp_set          @ call gp_set
+        mov       TMPREG, #400        @ Store 400 steps
+        mov       r0, #DirCW          @ rotate clockwise
+        bl        gp_clear            @ call gp_clear
+        mov       r0, #nSLP           @ activate co process
+        bl        gp_set              @ call gp_set
+        mov       r0, #nRSTCW         @ activate color wheel engine
+        bl        gp_set              @ call gp_set
 
 turn_cw_sub:
-        mov       r0, #13                 @ set step high
+        mov       r0, #StepCW             @ set step high
         bl        gp_set                  @ call gp_set
         mov       WAITREG, #3             @ Wait 3 ms
         bl        wait                    @ Start wait
-        mov       r0, #13                 @ set step high
+        mov       r0, #StepCW             @ set step high
         bl        gp_clear                @ set step low
         mov       WAITREG, #3             @ Wait 3 ms
         bl        wait                    @ Start wait
@@ -585,9 +599,9 @@ turn_cw_sub:
         cmp       TMPREG, #0              @ left steps == 0?
         bne       turn_cw_sub             @ if not again
 
-        mov       r0, #27                 @ deactivate color wheel engine
+        mov       r0, #nRSTCW             @ deactivate color wheel engine
         bl        gp_clear                @ clear output pin
-        mov       r0, #17                 @ deactivate co processor
+        mov       r0, #nSLP               @ deactivate co processor
         bl        gp_clear                @ clear output pin
         pop       {lr}
         bx        lr                      @ close branch
@@ -622,15 +636,15 @@ wait_do:
 @  return: RLDREG - color position
 @ --------------------------------------------------------------------
 get_color:
-        mov       r0,#22                @ set param pin number for gp_read
+        mov       r0,#colorBit0         @ define pin
         bl        gp_read               @ read pin23 level
         mov       r1,RLDREG             @ store return val to r1
         lsl       r1,#1                 @ make room for next pin
-        mov       r0,#23                @ set param for pin 23
+        mov       r0,#colorBit1         @ define pin
         bl        gp_read               @ read pin23 level
         orr       r1,r1,RLDREG          @ add return val to r1
         lsl       r1,#1                 @ make room for next pin
-        mov       r0,#24                @ set param for pin 24
+        mov       r0,#colorBit2         @ define pin
         bl        gp_read               @ read pin24 level
         orr       r1,r1,RLDREG          @ add return val to r1
         mov       RLDREG, r1            @ return r1
@@ -856,4 +870,3 @@ sysTimer:
 
 @ - END OF TEXT SECTION   @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
