@@ -39,7 +39,7 @@
 @ Center CW and Outlet Constants:
         .equ      CENTER_CWSPEED,10           @ wait in ms for centering CW
         .equ      CENTER_OUTSPEED,20          @ wait in ms for centering OUT
-
+        
 @ Pin names:
         .equ      nBTN1,8                     @ Button 1
         .equ      nRSTOut,11                  @ toggle engine Outlet
@@ -58,6 +58,7 @@
         .equ      nSLP,27                     @ toggle co-processor for engines
 
 @ Register names:
+POSREG  .req      r4
 TMPREG  .req      r5
 RETREG  .req      r6
 WAITREG .req      r8
@@ -297,6 +298,8 @@ main:
 sort:
         bl        hw_init
 
+        mov       POSREG,#0             @ make sure starting pos is 1
+
         bl        startpos_out_init     @ outlet position init
         bl        startpos_cw_init      @ color wheel position init
 
@@ -343,7 +346,7 @@ start_process:
 
         mov       r0, RLDREG              @ Set param(color/position) for TURN OUTLET
 
-        @ TURN OUTLET ...
+        bl        set_outlet
 
         b         check_flag              @ back to the beginning
 
@@ -353,6 +356,121 @@ stop:
 
         mov       R7, #1
         svc       0
+
+
+@ --------------------------------------------------------------------
+@ Get Color from Color Sensor, then light LED first and Turn Outlet in the needed
+@ direction
+@  param : none
+@  return: none
+@ --------------------------------------------------------------------
+set_outlet:
+        push    {lr}                    @ save link register
+        bl      get_color               @ fetch current color at hall sensor
+
+        cmp     RLDREG,#0               @ check if no color read
+        beq     decision_equal          @ dont move outlet
+
+        cmp     RLDREG,POSREG           @ check if outlet already at pos
+        beq     decision_equal          @ dont move outlet
+
+        mov     r1,POSREG               @ Save starting position to manipulate
+        bl      count_clockwise         @ count steps clockwise to color pos
+        mov     TMPREG,r2               @ save result
+        
+        mov     r1,POSREG               @ Save starting position to manipulate
+        bl      count_counterclock      @ count steps ccw to color pos
+
+        cmp     TMPREG,r2               @ compare TMPREG: steps clockwise
+                                        @ and     r2    : steps counterclockwise
+        mov     r0,TMPREG               @ save steps clockwise
+        blt     decision_clockwise      @ less steps clockwise
+
+        mov     r0,r2                   @ save steps counterclockwise
+        bge     decision_counterclock   @ less steps counterclockwise
+                                        @ if same steps pick ccw by default
+
+
+decision_clockwise:
+        mov     r3,r0                   @ save steps needed to r3
+
+        mov     r0,#DirOut              @ set pin number for DirOut
+        bl      gp_set                  @ set direction of out to cw
+
+decision_clockwise_step:
+        bl      turn_out                @ turn outlet, r3 will always be gt 0
+        sub     r3,r3,#1                @ decrement step counter
+        
+        cmp     r3,#0                   @ check if reached destination
+        bne     decision_clockwise_step @ continue if != 0
+        mov     POSREG,RLDREG           @ save new position
+        pop     {lr}                    @ restore lr
+        bx      lr                      @ return to caller    
+
+
+decision_counterclock:
+        mov     r3,r0                   @ save steps to r3
+
+        mov     r0,#DirOut              @ pin of DirOut
+        bl      gp_clear                @ set Direction to ccw
+
+decision_counterclock_step:
+        bl      turn_out                @ turn outlet
+        sub     r3,r3,#1                @ decrement step counter
+
+        cmp     r3,#0                   @ check if reached destination
+        bne     decision_counterclock_step @ continue turning
+        mov     POSREG,RLDREG
+        pop     {lr}                    @ restore lr
+        bx      lr                      @ return to caller
+
+decision_equal:
+        pop     {lr}                    @ restore lr
+        bx      lr                      @ return to caller
+
+
+count_clockwise:
+        cmp     r1,#6                  @ if = 5: edge reached
+        beq     clockwise_edge         @ set pos to 0 intsead of adding 1
+                                       @ if not 5: continue incrementing
+
+        add     r1,r1,#1               @ set position +1 step cw
+        add     r2,r2,#1               @ increment step counter
+
+        cmp     r1,RLDREG              @ if not at desired pos:
+        bne     count_clockwise        @ repeat cycle
+        bx      lr                     @ return steps counted
+
+
+clockwise_edge: 
+        mov     r1,#1                   @ set to min value in ring
+        add     r2,r2,#1                @ increment step counter
+
+        cmp     r1,RLDREG               
+        bne     count_clockwise         @ continue stepping
+        bx      lr
+
+count_counterclock:
+        
+        cmp     r1,#1                  @ if = 1: edge reached
+        beq     counterclock_edge      @ set pos to 6 intsead of subtracting 1
+                                       @ if not 1: continue incrementing
+
+        sub     r1,r1,#1               @ set position +1 step ccw
+        add     r2,r2,#1               @ increment step counter
+
+        cmp     r1,RLDREG              @ if not at desired pos:
+        bne     count_counterclock     @ repeat cycle
+        bx      lr                     @ return steps counted
+
+counterclock_edge:
+        mov     r1,#6                  @ set r1 to max number in ring
+        add     r2,r2,#1               @ increment step counter
+
+        cmp     r1,RLDREG
+        bne     count_counterclock
+
+        b       count_counterclock     @ continue
 
 
 @ --------------------------------------------------------------------
