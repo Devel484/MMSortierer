@@ -1,14 +1,14 @@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@ Sort.s                                                                     @
+@ Sort.s                                                                           @
 @ -------------------------------------------------------------------------------- @
-@ Author: Niclas Haderer, Pascal Kelbling, Christoph Hund, Moritz Fluechter  @
-@ Target: Raspberri Pi, Raspbian               @
-@ Project: MM-Sorting-Machine              @
-@ Date: 27.02.2019                 @
-@ Version: 0.01                  @
+@ Author:   Niclas Haderer, Pascal Kelbling, Christoph Hund, Moritz Fluechter      @
+@ Target:   Raspberri Pi, Raspbian                                                 @
+@ Project:  MM-Sorting-Machine                                                     @
+@ Date:     27.02.2019                                                             @
+@ Version:  0.01                                                                   @
 @ -------------------------------------------------------------------------------  @
 @ This program controls the MM-Sorting-Machine, reading multiple input sensors     @
-@ and controlling the motors accordingly.            @
+@ and controlling the motors accordingly.                                          @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
@@ -24,11 +24,11 @@
         .equ      PROT_WRITE,0x2              @ page can be written
         .equ      MAP_SHARED,0x01             @ share changes
 @ The following are defined by me:
-@        .equ      PERIPH,0x3f000000           @ RPi 2 & 3 peripherals
+@        .equ      PERIPH,0x3f000000          @ RPi 2 & 3 peripherals
         .equ      PERIPH,0x20000000           @ RPi zero & 1 peripherals
         .equ      GPIO_OFFSET,0x200000        @ start of GPIO device
         .equ      TIMERIR_OFFSET,0xB000       @ start f´of IR and timer
-        .equ    SYSTIMER_OFFSET,0x3000    @ start of sys timer lower 32 bit
+        .equ    SYSTIMER_OFFSET,0x3000        @ start of sys timer lower 32 bit
         .equ      O_FLAGS,O_RDWR|O_SYNC       @ open file flags
         .equ      PROT_RDWR,PROT_READ|PROT_WRITE
         .equ      NO_PREF,0
@@ -40,7 +40,7 @@
         .equ      CENTER_CWSPEED,10           @ wait in ms for centering CW
         .equ      CENTER_OUTSPEED,20          @ wait in ms for centering OUT
 
-@ Pin names
+@ Pin names:
         .equ      nBTN1,8                     @ Button 1
         .equ      nRSTOut,11                  @ toggle engine Outlet
         .equ      StepOut,12                  @ engine step Outlet
@@ -57,6 +57,7 @@
         .equ      DirOut,26                   @ direction of Outlet
         .equ      nSLP,27                     @ toggle co-processor for engines
 
+@ Register names:
 TMPREG  .req      r5
 RETREG  .req      r6
 WAITREG .req      r8
@@ -110,7 +111,7 @@ systimer_mmap_fd:
 
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@ - START OF TEXT SECTION @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@ - START OF TEXT SECTION @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
   .text
   @ externals for making use of std-functions
         .extern printf
@@ -283,7 +284,7 @@ main:
         @ restore sp and free stack
         add       sp, sp, #STACK_ARGS         @ fix sp
         ldr       r4, [sp, #0]                @ restore r4
-        ldr       r5, [sp, #4]                @      r5
+        ldr       r5, [sp, #4]                @         r5
         ldr       fp, [sp, #8]                @         fp
         ldr       lr, [sp, #12]               @         lr
         add       sp, sp, #16                 @ restore sp
@@ -291,7 +292,7 @@ main:
 
 
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-@       main program            @
+@       main program                                @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 sort:
         bl        hw_init
@@ -344,7 +345,7 @@ start_process:
 
         @ TURN OUTLET ...
 
-        b         check_flag
+        b         check_flag              @ back to the beginning
 
 stop:
         mov       r0, #GoStop             @ select Feeder StartStop pin
@@ -355,11 +356,11 @@ stop:
 
 
 @ --------------------------------------------------------------------
-@ Move Outlet Motor to starting position. The Hall sensor only returns
+@ Move Outlet engine to starting position. The hall sensor only returns
 @ true/false, so in order to find the center the motor turns until true
 @ starts counting its steps, turns until false and then turns back half
-@ of the steps counted to center itself
-@  param: none
+@ of the steps counted to center itself.
+@  param : none
 @  return: none
 @ --------------------------------------------------------------------
 startpos_out_init:
@@ -415,13 +416,13 @@ startpos_out_center:
 
 
 @ --------------------------------------------------------------------
-@ Move Color-Wheel to starting position, same principle as with Outlet
-@  param: none
+@ Move Color-Wheel to starting position, same principle as with Outlet.
+@  param : none
 @  return: none
 @ --------------------------------------------------------------------
 startpos_cw_init:
         push      {lr}
-        mov       r0,#DirCW            @ number of Outlet Dir pin
+        mov       r0,#DirCW             @ number of Outlet Dir pin
         bl        gp_set                @ Set Outlet motor direction
 
 startpos_cw:
@@ -470,8 +471,8 @@ startpos_cw_center:
 
 
 @ --------------------------------------------------------------------
-@ Move Outlet with given parameters
-@  param: r0 = steps, r1 = wait ms
+@ Move Outlet with given parameters.
+@  param : r0 = steps, r1 = wait ms
 @  return: none
 @ --------------------------------------------------------------------
 turn_out_step:
@@ -506,8 +507,8 @@ turn_out_step_sub:
 
 
 @ --------------------------------------------------------------------
-@ Move Outlet 67°
-@  param: none
+@ Move Outlet 67°.
+@  param : none
 @  return: none
 @ --------------------------------------------------------------------
 turn_out:
@@ -540,7 +541,7 @@ turn_out_sub:
 
 
 @ --------------------------------------------------------------------
-@ Move Color-Wheel steps
+@ Move Color-Wheel with given parameters.
 @  param : r0 = steps, r1 = wait_ms
 @  return: none
 @ --------------------------------------------------------------------
@@ -573,7 +574,8 @@ turn_cw_step_sub:
         bx        lr                  @ close branch
 
 @ --------------------------------------------------------------------
-@ Move Color-Wheel 90°
+@ Move Color-Wheel 90°.
+@  param : none
 @  return: none
 @ --------------------------------------------------------------------
 turn_cw:
@@ -609,30 +611,30 @@ turn_cw_sub:
 
 @ --------------------------------------------------------------------
 @ Wait for the given time (ms). Count down 485378 steps for 1ms.
-@  param: WAITREG in microseconds
+@  param : WAITREG in microseconds
 @  return: none
 @ --------------------------------------------------------------------
 wait:
         mov       r0, #237
-        lsl       r0, #11               @ 485376 steps
+        lsl       r0, #11               @ Save 485376 in r0
 
 wait_do:
-        subs      r0, #1
+        subs      r0, #1                @ Count down r0
         cmp       r0, #0
-        bne       wait_do
+        bne       wait_do               @ Go again if r0 is not 0
 
-        subs      WAITREG, #1
+        subs      WAITREG, #1           @ Count down WAITREG (given ms to wait)
         cmp       WAITREG, #0
-        bne       wait
+        bne       wait                  @ Go again for another 1ms
 
-        bx        lr
+        bx        lr                    @ close branch
 
 @ --------------------------------------------------------------------
 @ Fetch Color from Sensor. Will return pins 22, 23, 24 as one binary number.
 @  0 | 0 | 0 <-> Bit2 | Bit1 | Bit0
 @ The reult is a decimal number between 0 and 7, because this 0 and 7 are undefined,
 @ the number can be read as a position for the outlet (1-6)
-@  param: none
+@  param : none
 @  return: RLDREG - color position
 @ --------------------------------------------------------------------
 get_color:
@@ -649,12 +651,12 @@ get_color:
         orr       r1,r1,RLDREG          @ add return val to r1
         mov       RLDREG, r1            @ return r1
 
-        bx        lr
+        bx        lr                    @ close branch
 
 
 @ --------------------------------------------------------------------
-@  Sets the pin with number saved in r0 to 1 (Pull Up)
-@  param: r0 - PinNumber
+@  Set the pin with number saved in r0 to 1 (Pull Up)
+@  param : r0 - PinNumber
 @  return: none
 @ --------------------------------------------------------------------
 gp_set:
@@ -662,9 +664,10 @@ gp_set:
         lsl       r1,r0                  @ shift 1 to position of pin passed in r0
         str       r1,[GPIOREG,#0x1C]     @ Write mask to GPSET0
         bx        lr                     @ return
+
 @ --------------------------------------------------------------------
 @  Clears the pin with number saved in r0 (Pull Down)
-@  param: r0 - PinNumber
+@  param : r0 - PinNumber
 @  return: none
 @ --------------------------------------------------------------------
 gp_clear:
@@ -682,7 +685,7 @@ gp_clear:
 @                  = 00001000        00000000
 @   after rsl     -> 00000001        00000000
 @
-@  param: r0 - PinNumber
+@  param : r0 - PinNumber
 @  return: RLDREG - 0 or 1 (unset or set)
 @ --------------------------------------------------------------------
 gp_read:
@@ -695,11 +698,10 @@ gp_read:
         bx        lr                    @ return
 
 
-
-@@ --------------------------------------------------------------------
+@ --------------------------------------------------------------------
 @ Inititalize all needed GPIOs (see above), Set Input/Output mode,
 @ Set starting values of some Pins (11, 17)
-@  param: none
+@  param : none
 @  return: none
 @ -------------------------------------------------------------------
 hw_init:
