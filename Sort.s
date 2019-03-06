@@ -39,7 +39,15 @@
 @ Center CW and Outlet Constants:
         .equ      CENTER_CWSPEED,10           @ wait in ms for centering CW
         .equ      CENTER_OUTSPEED,20          @ wait in ms for centering OUT
-        
+@ Constants for LEDs
+        .equ      LED_OFFSET,0                @ Offset between outlet starting pos and red LED
+        .equ      COLOR_RED,0xFF0000          @ RGB code for red
+        .equ      COLOR_GREEN,0x00FF00        @ RGB code for green
+        .equ      COLOR_BLUE,0x0000FF         @ RGB code for blue
+        .equ      COLOR_BROWN,0x663300        @ RGB code for brown
+        .equ      COLOR_ORANGE,0xFF9900       @ RGB code for orange
+        .equ      COLOR_YELLOW,0xFFFF66       @ RGB code for yellow
+
 @ Pin names:
         .equ      nBTN1,8                     @ Button 1
         .equ      nRSTOut,11                  @ toggle engine Outlet
@@ -298,7 +306,16 @@ main:
 sort:
         bl        hw_init
 
-        mov       POSREG,#0             @ make sure starting pos is 1
+        @ start config for outlet and LEDs ---------------------------
+        mov       POSREG,#1             @ make sure starting pos is 1
+        push      {GPIOREG}
+        bl        WS2812RPi_Init        @ initialise LEDs
+
+        mov       r0,#100               @ Brightness for LEDs (0-100)
+        bl        WS2812RPi_SetBrightness @ set Brightness for all LEDs
+        bl        WS2812RPi_Show        @ Apply Brightness change
+        pop       {GPIOREG}
+        @ end of cfg ------------------------------------------------
 
         bl        startpos_out_init     @ outlet position init
         bl        startpos_cw_init      @ color wheel position init
@@ -357,6 +374,78 @@ stop:
         mov       R7, #1
         svc       0
 
+@ --------------------------------------------------------------------
+@  Turns on the LED at the desired position. The Pos number is the 
+@  same for LED and Outlet
+@
+@       
+@       Pos     | Color
+@       ----------------
+@       1       | RED
+@       2       | GREEN
+@       3       | BLUE
+@       4       | BROWN
+@       5       | ORANGE
+@       6       | YELLOW
+@
+@  param : r0 - LED pos (starting under Hall sensor)
+@  return: none
+@ --------------------------------------------------------------------
+set_LED:
+        puh     {lr}                    @ save lr
+        mov     r1,#COLOR_RED           @ store RED color RGB val to pass
+        cmp     r0,#1                   @ if position passed in r0 = 1
+        beq     offset_LED              @ the color needed is red
+
+        mov     r1,#COLOR_GREEN         @ store GREEN color RGB val to pass
+        cmp     r0,#2                   @ if position passed in r0 = 2
+        beq     offset_LED              @ the color needed is green
+
+        mov     r1,#COLOR_BLUE          @ store BLUE color RGB val to pass
+        cmp     r0,#3                   @ if position passed in r0 = 3
+        beq     offset_LED              @ the color needed is blue
+
+        mov     r1,#COLOR_BROWN         @ store BROWN color RGB val to pass
+        cmp     r0,#4                   @ if position passed in r0 = 4
+        beq     offset_LED              @ the color needed is brown
+
+        mov     r1,#COLOR_ORANGE        @ store ORANGE color RGB val to pass
+        cmp     r0,#5                   @ if position passed in r0 = 5
+        beq     offset_LED              @ the color needed is orange
+
+        mov     r1,#COLOR_YELLOW        @ store YELLOW color RGB val to pass
+        cmp     r0,#6                   @ if position passed in r0 = 6
+        b       offset_LED              @ the color needed is yellow
+
+offset_LED:
+        @ Hint: The Starting pos for LEDs (1) is the same as the starting pos
+        @       of the outlet. But Because that may not be the LED with the 
+        @       predefined number used in the WS2812RPi library, the offset
+        @       corrects that by adding the offset and subtracting 6 if the 
+        @       resulting value is >6 to continue the ring system
+        add     r0,#LED_OFFSET          
+        cmp     r0,#6                   @ check if out of ring
+        bgt     set_LED_edge            @ correct pos value
+        b       light_LED               @ continue with lighting LED
+
+set_LED_edge:
+        sub     r0,r0,#6                @ %6 is needed to stay inside ring
+                                        @ however pos + offset cant be >11
+                                        @ (offset max 5)
+
+light_LED:
+        @ r0 now contains the position with offset
+        @ and r1 the needed color
+        push    {GPIOREG}               @ GPIOREG may be altered by function
+        push    {r0}                    @ r0 may be altered by function
+        bl      WS2812RPi_SetSingle     @ Set which Led to light
+        pop     {r0}                    @ retrieve LED pos for next call
+        bl      WS2812RPi_SetOthersOff  @ Set other LEDs off
+
+        bl      WS2812RPi_Show          @ Light LEDs
+        pop     {GPIOREG}               @ restore GPIOREG
+        pop     {lr}                    @ restore lr
+        bx      lr                      @ return to caller
 
 @ --------------------------------------------------------------------
 @ Get Color from Color Sensor, then light LED first and Turn Outlet in the needed
@@ -375,6 +464,9 @@ set_outlet:
 
         cmp     RLDREG,#0               @ check if no color read
         beq     decision_equal          @ dont move outlet
+
+        mov     r0,RLDREG               @ pass color val 
+        bl      set_LED                 @ set led based on color
 
         cmp     RLDREG,POSREG           @ check if outlet already at pos
         beq     decision_equal          @ dont move outlet
@@ -759,17 +851,17 @@ wait_do:
 @  return: RLDREG - color position
 @ --------------------------------------------------------------------
 get_color:
-        mov       r0,#colorBit0         @ define pin
+        mov       r0,#colorBit2         @ first color Bit
         bl        gp_read               @ read pin23 level
         mov       r1,RLDREG             @ store return val to r1
         lsl       r1,#1                 @ make room for next pin
-        mov       r0,#colorBit1         @ define pin
+        mov       r0,#colorBit1         @ second Color Bit
         bl        gp_read               @ read pin23 level
-        orr       r1,r1,RLDREG          @ add return val to r1
+        orr       r1,r1,RLDREG          @ store return val to rightmost bit
         lsl       r1,#1                 @ make room for next pin
-        mov       r0,#colorBit2         @ define pin
+        mov       r0,#colorBit0         @ last color Bit
         bl        gp_read               @ read pin24 level
-        orr       r1,r1,RLDREG          @ add return val to r1
+        orr       r1,r1,RLDREG          @ store return val to rightmost bit
         mov       RLDREG, r1            @ return r1
 
         bx        lr                    @ close branch
