@@ -360,7 +360,12 @@ stop:
 
 @ --------------------------------------------------------------------
 @ Get Color from Color Sensor, then light LED first and Turn Outlet in the needed
-@ direction
+@ direction.
+@ Idea:
+@       The postion number is a ring system from 1 to 6. These are translated into
+@       positions adding 1 in clockwise direction.
+@       -> 6 + 1 = 1 and 1 - 1 = 6
+@       
 @  param : none
 @  return: none
 @ --------------------------------------------------------------------
@@ -402,8 +407,8 @@ decision_clockwise_step:
         sub     r3,r3,#1                @ decrement step counter
         
         cmp     r3,#0                   @ check if reached destination
-        bne     decision_clockwise_step @ continue if != 0
-        mov     POSREG,RLDREG           @ save new position
+        bne     decision_clockwise_step @ continue turning
+        mov     POSREG,RLDREG           @ set position to destination
         pop     {lr}                    @ restore lr
         bx      lr                      @ return to caller    
 
@@ -420,7 +425,7 @@ decision_counterclock_step:
 
         cmp     r3,#0                   @ check if reached destination
         bne     decision_counterclock_step @ continue turning
-        mov     POSREG,RLDREG
+        mov     POSREG,RLDREG           @ set position to destination
         pop     {lr}                    @ restore lr
         bx      lr                      @ return to caller
 
@@ -437,7 +442,7 @@ count_clockwise:
         add     r1,r1,#1               @ set position +1 step cw
         add     r2,r2,#1               @ increment step counter
 
-        cmp     r1,RLDREG              @ if not at desired pos:
+        cmp     r1,RLDREG              @ if not at destination:
         bne     count_clockwise        @ repeat cycle
         bx      lr                     @ return steps counted
 
@@ -446,9 +451,9 @@ clockwise_edge:
         mov     r1,#1                   @ set to min value in ring
         add     r2,r2,#1                @ increment step counter
 
-        cmp     r1,RLDREG               
-        bne     count_clockwise         @ continue stepping
-        bx      lr
+        cmp     r1,RLDREG               @ check if reached destination
+        bne     count_clockwise         @ if not: continue counting
+        bx      lr                      @ else: return to caller
 
 count_counterclock:
         
@@ -467,11 +472,9 @@ counterclock_edge:
         mov     r1,#6                  @ set r1 to max number in ring
         add     r2,r2,#1               @ increment step counter
 
-        cmp     r1,RLDREG
-        bne     count_counterclock
-
-        b       count_counterclock     @ continue
-
+        cmp     r1,RLDREG              @ check if destination reached
+        bne     count_counterclock     @ if not continue counting
+        bx      lr                     @ else: return to caller
 
 @ --------------------------------------------------------------------
 @ Move Outlet engine to starting position. The hall sensor only returns
