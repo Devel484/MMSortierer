@@ -525,10 +525,12 @@ set_outlet:
         bl      get_color               @ fetch current color at hall sensor
 
         cmp     RLDREG,#0               @ check if no color read
-        beq     turning_noLED                 @ dont move outlet
+        beq     turning_end                 @ dont move outlet
 
         mov     r0,RLDREG               @ pass color val
+        push	{POSREG, RLDREG, FLAGREG}
         bl      set_LED                 @ set led based on color
+        pop		{POSREG, RLDREG, FLAGREG}
 
         @ the test if the outlet already is at the correct position happens
         @ after settign the LED soeven if the outlet doesnt turn, the LED
@@ -541,6 +543,7 @@ still_turning:
         cmp     POSREG,#6               @ Check if POS reached ring edge
         beq     turning_edge            @ handle edge
 
+		bl		turn_out
         add     POSREG,POSREG,#1        @ increment position of outlet
         cmp     RLDREG,POSREG           @ check if destination reached
         beq     turning_end             @ reached destination, stop
@@ -548,13 +551,13 @@ still_turning:
 
 turning_edge:
         mov     POSREG,#1               @ set pos to ring min
-        bl      turn_out                @ turn outlet 66°
+        bl      turn_out                @ turn outlet 60°
 
         cmp     POSREG,RLDREG           @check if at destination
         beq     turning_end             @reached destination, end
         b       still_turning           @didnt reach, continue
 
-turning_noLED:
+turning_no_LED:
         push    {GPIOREG}               @ GPIO will be altered in library functions
         bl      WS2812RPi_AllOff        @ deactivate all LEDs
         bl      WS2812RPi_Show          @ apply changes
@@ -563,7 +566,7 @@ turning_noLED:
 turning_end:
         pop     {lr}                    @ restore lr
         bx      lr                      @ return to caller
-        
+
 
 @ --------------------------------------------------------------------
 @ Move Outlet engine to starting position. The hall sensor only returns
@@ -851,6 +854,7 @@ wait_do:
 @  return: RLDREG - color position
 @ --------------------------------------------------------------------
 get_color:
+		push	  {lr}
         mov       r0,#colorBit2           @ first color Bit
         bl        gp_read                 @ read pin23 level
         mov       r3,RLDREG               @ store return val to r1
@@ -863,7 +867,7 @@ get_color:
         bl        gp_read                 @ read pin24 level
         orr       r3,r3,RLDREG            @ store return val to rightmost bit
         mov       RLDREG, r3              @ return r1
-
+		pop		  {lr}
         bx        lr                      @ close branch
 
 
