@@ -46,11 +46,11 @@
         .equ      POS_GREEN,1                 @ GREEN LED position 
         .equ      COLOR_BLUE,0x0000FF         @ RGB code for blue
         .equ      POS_BLUE,3                  @ BLUE LED position
-        .equ      COLOR_BROWN,0x663300        @ RGB code for brown
+        .equ      COLOR_BROWN,8388608         @ RGB code for brown
         .equ      POS_BROWN,5                 @ BROWN LED position
-        .equ      COLOR_ORANGE,0xFF9900       @ RGB code for orange
+        .equ      COLOR_ORANGE,16777216       @ RGB code for orange
         .equ      POS_ORANGE,6                @ ORANGE LED position
-        .equ      COLOR_YELLOW,0xFFFF66       @ RGB code for yellow
+        .equ      COLOR_YELLOW,0x16777216     @ RGB code for yellow
         .equ      POS_YELLOW,4                @ YELLOW LED position
 
 @ Pin names:
