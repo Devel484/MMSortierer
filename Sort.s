@@ -382,6 +382,10 @@ check_color_sensor:
         beq       check_empty_rounds      @ no M&M in color position
 
 start_process:
+        pop       {TMPREG}                @ get emptyRounds counter from stack
+        mov       TMPREG, #0              @ set it to 0
+        push      {TMPREG}                @ move it back to the stack
+
         bl        turn_cw
         mov       WAITREG, #1000          @ Wait 1 s
         bl        wait                    @ Start wait
