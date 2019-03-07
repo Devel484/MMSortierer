@@ -478,7 +478,7 @@ yellow_LED:
 
 
 light_LED:
-        @ r0 now contains the position with offset
+        @ r0 now contains the position
         @ and r1 the needed color
         push    {GPIOREG}               @ GPIOREG may be altered by function
         push    {r0}                    @ r0 may be altered by function
@@ -507,110 +507,39 @@ set_outlet:
         bl      get_color               @ fetch current color at hall sensor
 
         cmp     RLDREG,#0               @ check if no color read
-        beq     decision_equal          @ dont move outlet
+        beq     turning_end             @ dont move outlet
 
         mov     r0,RLDREG               @ pass color val
         bl      set_LED                 @ set led based on color
 
+        @ the test if the outlet already is at the correct position happens
+        @ after settign the LED soeven if the outlet doesnt turn, the LED
+        @ will still light on
+        
         cmp     RLDREG,POSREG           @ check if outlet already at pos
         beq     decision_equal          @ dont move outlet
 
-        mov     r1,POSREG               @ Save starting position to manipulate
-        bl      count_clockwise         @ count steps clockwise to color pos
-        mov     TMPREG,r2               @ save result
+still_turning:
+        cmp     POSREG,#6               @ Check if POS reached ring edge
+        beq     turning_edge            @ handle edge
 
-        mov     r1,POSREG               @ Save starting position to manipulate
-        bl      count_counterclock      @ count steps ccw to color pos
+        add     POSREG,POSREG,#1        @ increment position of outlet
+        cmp     RLDREG,POSREG           @ check if destination reached
+        beq     turning_end             @ reached destination, stop
+        b       still_turning           @ didnt reach, continue
 
-        cmp     TMPREG,r2               @ compare TMPREG: steps clockwise
-                                        @ and     r2    : steps counterclockwise
-        mov     r0,TMPREG               @ save steps clockwise
-        blt     decision_clockwise      @ less steps clockwise
+turning_edge:
+        mov     POSREG,#1               @ set pos to ring min
+        bl      turn_out                @ turn outlet 66°
 
-        mov     r0,r2                   @ save steps counterclockwise
-        bge     decision_counterclock   @ less steps counterclockwise
-                                        @ if same steps pick ccw by default
+        cmp     POSREG,RLDREG           @check if at destination
+        beq     turning_end             @reached destination, end
+        b       still_turning           @didnt reach, continue
 
-
-decision_clockwise:
-        mov     r3,r0                   @ save steps needed to r3
-
-        mov     r0,#DirOut              @ set pin number for DirOut
-        bl      gp_clear                @ set direction of out to cw
-
-decision_clockwise_step:
-        bl      turn_out                @ turn outlet, r3 will always be gt 0
-        sub     r3,r3,#1                @ decrement step counter
-
-        cmp     r3,#0                   @ check if reached destination
-        bne     decision_clockwise_step @ continue turning
-        mov     POSREG,RLDREG           @ set position to destination
+turning_end:
         pop     {lr}                    @ restore lr
         bx      lr                      @ return to caller
-
-
-decision_counterclock:
-        mov     r3,r0                   @ save steps to r3
-
-        mov     r0,#DirOut              @ pin of DirOut
-        bl      gp_set                  @ set Direction to ccw
-
-decision_counterclock_step:
-        bl      turn_out                @ turn outlet
-        sub     r3,r3,#1                @ decrement step counter
-
-        cmp     r3,#0                   @ check if reached destination
-        bne     decision_counterclock_step @ continue turning
-        mov     POSREG,RLDREG           @ set position to destination
-        pop     {lr}                    @ restore lr
-        bx      lr                      @ return to caller
-
-decision_equal:
-        pop     {lr}                    @ restore lr
-        bx      lr                      @ return to caller
-
-
-count_clockwise:
-        cmp     r1,#6                  @ if = 5: edge reached
-        beq     clockwise_edge         @ set pos to 0 intsead of adding 1
-                                       @ if not 5: continue incrementing
-
-        add     r1,r1,#1               @ set position +1 step cw
-        add     r2,r2,#1               @ increment step counter
-
-        cmp     r1,RLDREG              @ if not at destination:
-        bne     count_clockwise        @ repeat cycle
-        bx      lr                     @ return steps counted
-
-
-clockwise_edge:
-        mov     r1,#1                   @ set to min value in ring
-        add     r2,r2,#1                @ increment step counter
-
-        cmp     r1,RLDREG               @ check if reached destination
-        bne     count_clockwise         @ if not: continue counting
-        bx      lr                      @ else: return to caller
-
-count_counterclock:
-
-        cmp     r1,#1                  @ if = 1: edge reached
-        beq     counterclock_edge      @ set pos to 6 intsead of subtracting 1
-                                       @ if not 1: continue incrementing
-
-        sub     r1,r1,#1               @ set position +1 step ccw
-        add     r2,r2,#1               @ increment step counter
-
-        cmp     r1,RLDREG              @ if not at desired pos:
-        bne     count_counterclock     @ repeat cycle
-        bx      lr                     @ return steps counted
-
-counterclock_edge:
-        mov     r1,#6                  @ set r1 to max number in ring
-        add     r2,r2,#1               @ increment step counter
-
-        cmp     r1,RLDREG              @ check if destination reached
-        bne     count_counterclock     @ if not continue counting
-        bx      lr                     @ else: return to caller
+        
 
 @ --------------------------------------------------------------------
 @ Move Outlet engine to starting position. The hall sensor only returns
