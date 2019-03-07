@@ -46,11 +46,17 @@
         .equ      POS_GREEN,1                 @ GREEN LED position
         .equ      COLOR_BLUE,0x0000FF         @ RGB code for blue
         .equ      POS_BLUE,3                  @ BLUE LED position
-        .equ      COLOR_BROWN,8388608         @ RGB code for brown
+        .equ      COLOR_BROWN_H,0x66          @ highest byte of BROWN RGB
+        .equ      COLOR_BROWN_M,0x33          @ middle byte of BROWN RGB
+        .equ      COLOR_BROWN_L,0x00          @ lowest byte of BROWN RGB
         .equ      POS_BROWN,5                 @ BROWN LED position
-        .equ      COLOR_ORANGE,16777216       @ RGB code for orange
+        .equ      COLOR_ORANGE_H,0xFF         @ highest byte of ORANGE RGB
+        .equ      COLOR_ORANGE_M,0x99         @ middle byte of ORANGE RGB
+        .equ      COLOR_ORANGE_L,0x00         @ lowest byte of ORAGNE RGB
         .equ      POS_ORANGE,6                @ ORANGE LED position
-        .equ      COLOR_YELLOW,16777216     @ RGB code for yellow
+        .equ      COLOR_YELLOW_H,0xFF         @ highest byte of YELLOW RGB
+        .equ      COLOR_YELLOW_M,0xFF         @ middle byte of YELLOW RGB
+        .equ      COLOR_YELLOW_L,0x00         @ lowest byte of YELLOW RGB
         .equ      POS_YELLOW,4                @ YELLOW LED position
 
 @ Pin names:
@@ -460,19 +466,31 @@ blue_LED:
 
 
 brown_LED:
-        mov     r1,#COLOR_BROWN         @ pass BROWN RGB code
+        mov     r1,#COLOR_BROWN_H         @ pass BROWN RGB code
+        lsl     r1,#8                    @ make room for next 8 bits
+        orr     r1,r1,#COLOR_BROWN_M     @ append middle byte
+        lsl     r1,#8                    @ make room for last 8 bits
+        orr     r1,r1,#COLOR_BROWN_L     @ append lowest byte
         mov     r0,#POS_BROWN           @ pass BROWN LED position
         b       light_LED               @ light selected LED
 
 
 orange_LED:
-        mov     r1,#COLOR_ORANGE        @ pass ORANGE RGB code
+        mov     r1,#COLOR_ORANGE_H        @ pass ORANGE RGB code
+        lsl     r1,#8                    @ make room for next 8 bits
+        orr     r1,r1,#COLOR_ORANGE_M     @ append middle byte
+        lsl     r1,#8                    @ make room for last 8 bits
+        orr     r1,r1,#COLOR_ORANGE_L   @ append lowest byte
         mov     r0,#POS_ORANGE          @ pass ORANGE LED position
         b       light_LED               @ light selected LED
 
 
 yellow_LED:
-        mov     r1,#COLOR_YELLOW        @ pass YELLOW RGB code
+        mov     r1,#COLOR_YELLOW_H      @ pass YELLOW RGB code
+        lsl     r1,#8                   @ make room for next 8 bits
+        orr     r1,r1,#COLOR_YELLOW_M   @ append middle byte
+        lsl     r1,#8                   @ make room for last 8 bits
+        orr     r1,r1,#COLOR_YELLOW_L   @ append lowest byte
         mov     r0,#POS_YELLOW          @ pass YELLOW LED position
         b       light_LED               @ light selected LED
 
@@ -507,7 +525,7 @@ set_outlet:
         bl      get_color               @ fetch current color at hall sensor
 
         cmp     RLDREG,#0               @ check if no color read
-        beq     turning_end             @ dont move outlet
+        beq     turning_noLED                 @ dont move outlet
 
         mov     r0,RLDREG               @ pass color val
         bl      set_LED                 @ set led based on color
@@ -515,9 +533,9 @@ set_outlet:
         @ the test if the outlet already is at the correct position happens
         @ after settign the LED soeven if the outlet doesnt turn, the LED
         @ will still light on
-        
+
         cmp     RLDREG,POSREG           @ check if outlet already at pos
-        beq     decision_equal          @ dont move outlet
+        beq     turning_end          @ dont move outlet
 
 still_turning:
         cmp     POSREG,#6               @ Check if POS reached ring edge
@@ -535,6 +553,12 @@ turning_edge:
         cmp     POSREG,RLDREG           @check if at destination
         beq     turning_end             @reached destination, end
         b       still_turning           @didnt reach, continue
+
+turning_noLED:
+        push    {GPIOREG}               @ GPIO will be altered in library functions
+        bl      WS2812RPi_AllOff        @ deactivate all LEDs
+        bl      WS2812RPi_Show          @ apply changes
+        pop     {GPIOREG}               @ restore
 
 turning_end:
         pop     {lr}                    @ restore lr
@@ -557,7 +581,7 @@ startpos_out_init:
 startpos_move_out_outside:
         mov       r0,#nHallOutlet         @ hall sensor pin number
         bl        gp_read                 @ get hall sensor value
-        cmp		  RLDREG, #0			  @ check if outlet already inside
+        cmp       RLDREG, #0			  @ check if outlet already inside
         bne       startpos_out			  @ outlet is out of view
 
         mov       r0,#DirOut              @ number of Outlet Dir pin
@@ -569,7 +593,7 @@ startpos_move_out_outside:
 
         mov       r0,#DirOut              @ number of Outlet Dir pin
         bl        gp_set                  @ Set Outlet motor counter clockwise direction
-        b		  startpos_move_out_outside@ Do again and check if outside
+        b         startpos_move_out_outside@ Do again and check if outside
 
 
 startpos_out:
