@@ -40,13 +40,18 @@
         .equ      CENTER_CWSPEED,10           @ wait in ms for centering CW
         .equ      CENTER_OUTSPEED,20          @ wait in ms for centering OUT
 @ Constants for LEDs
-        .equ      LED_OFFSET,0                @ Offset between outlet starting pos and red LED
         .equ      COLOR_RED,0xFF0000          @ RGB code for red
+        .equ      POS_RED,2                   @ RED Led position in library
         .equ      COLOR_GREEN,0x00FF00        @ RGB code for green
+        .equ      POS_GREEN,1                 @ GREEN LED position 
         .equ      COLOR_BLUE,0x0000FF         @ RGB code for blue
+        .equ      POS_BLUE,3                  @ BLUE LED position
         .equ      COLOR_BROWN,0x663300        @ RGB code for brown
+        .equ      POS_BROWN,5                 @ BROWN LED position
         .equ      COLOR_ORANGE,0xFF9900       @ RGB code for orange
+        .equ      POS_ORANGE,6                @ ORANGE LED position
         .equ      COLOR_YELLOW,0xFFFF66       @ RGB code for yellow
+        .equ      POS_YELLOW,4                @ YELLOW LED position
 
 @ Pin names:
         .equ      nBTN1,8                     @ Button 1
@@ -378,6 +383,9 @@ stop:
 @  Turns on the LED at the desired position. The Pos number is the 
 @  same for LED and Outlet
 @
+@  HINT:
+@       Because the LED positions defined in the library arent numbered
+@       cyclic, the position must be chosen manually.
 @       
 @       Pos     | Color
 @       ----------------
@@ -392,46 +400,62 @@ stop:
 @  return: none
 @ --------------------------------------------------------------------
 set_LED:
-        puh     {lr}                    @ save lr
-        mov     r1,#COLOR_RED           @ store RED color RGB val to pass
-        cmp     r0,#1                   @ if position passed in r0 = 1
-        beq     offset_LED              @ the color needed is red
+        push    {lr}                    @ save lr
+        mov     TMPREG,r0               @ save LED pos to compare
 
-        mov     r1,#COLOR_GREEN         @ store GREEN color RGB val to pass
-        cmp     r0,#2                   @ if position passed in r0 = 2
-        beq     offset_LED              @ the color needed is green
+        cmp     TMPREG,#1               @ check if RED is the correct position 
+        beq     red_LED                 @ continue with RED vals
 
-        mov     r1,#COLOR_BLUE          @ store BLUE color RGB val to pass
-        cmp     r0,#3                   @ if position passed in r0 = 3
-        beq     offset_LED              @ the color needed is blue
+        cmp     TMPREG,#2               @ check if GREEN is the correct color
+        beq     green_LED               @ continue with GREEN vals
 
-        mov     r1,#COLOR_BROWN         @ store BROWN color RGB val to pass
-        cmp     r0,#4                   @ if position passed in r0 = 4
-        beq     offset_LED              @ the color needed is brown
+        cmp     TMPREG,#3               @ check if BLUE is the correct color
+        beq     blue_LED                @ continue with BLUE vals
 
-        mov     r1,#COLOR_ORANGE        @ store ORANGE color RGB val to pass
-        cmp     r0,#5                   @ if position passed in r0 = 5
-        beq     offset_LED              @ the color needed is orange
+        cmp     TMPREG,#4               @ check if BROWN is the correct color
+        beq     brown_LED               @ continue with BROWN vals
 
-        mov     r1,#COLOR_YELLOW        @ store YELLOW color RGB val to pass
-        cmp     r0,#6                   @ if position passed in r0 = 6
-        b       offset_LED              @ the color needed is yellow
+        cmp     TMPREG,#5               @ check if ORANGE is the correct color
+        beq     orange_LED              @ continue with BROWN vals
 
-offset_LED:
-        @ Hint: The Starting pos for LEDs (1) is the same as the starting pos
-        @       of the outlet. But Because that may not be the LED with the 
-        @       predefined number used in the WS2812RPi library, the offset
-        @       corrects that by adding the offset and subtracting 6 if the 
-        @       resulting value is >6 to continue the ring system
-        add     r0,#LED_OFFSET          
-        cmp     r0,#6                   @ check if out of ring
-        bgt     set_LED_edge            @ correct pos value
-        b       light_LED               @ continue with lighting LED
+        cmp     TMPREG,#6               @ check if YELLOW is the correct color
+        b       yellowLED               @ continue with YELLOW vals
 
-set_LED_edge:
-        sub     r0,r0,#6                @ %6 is needed to stay inside ring
-                                        @ however pos + offset cant be >11
-                                        @ (offset max 5)
+
+red_LED:
+        mov     r1,#COLOR_RED           @ pass RED RGB code
+        mov     r0,#POS_RED             @ pass RED LED position
+        b       light_LED               @ light selected LED
+        
+
+green_LED:
+        mov     r1,#COLOR_GREEN         @ pass GREEN RGB code
+        mov     r0,#POS_GREEN           @ pass GREEN LED position
+        b       light_LED               @ light selected LED
+        
+blue_LED:
+        mov     r1,#COLOR_BLUE          @ pass BLUE RGB code
+        mov     r0,#POS_BLUE            @ pass BLUE LED position
+        b       light_LED               @ light selected LED
+        
+
+brown_LED:
+        mov     r1,#COLOR_BROWN         @ pass BROWN RGB code
+        mov     r0,#POS_BROWN           @ pass BROWN LED position
+        b       light_LED               @ light selected LED
+        
+
+orange_LED:
+        mov     r1,#COLOR_ORANGE        @ pass ORANGE RGB code
+        mov     r0,#POS_ORANGE          @ pass ORANGE LED position
+        b       light_LED               @ light selected LED
+        
+
+yellow_LED:
+        mov     r1,#COLOR_YELLOW        @ pass YELLOW RGB code
+        mov     r0,#POS_YELLOW          @ pass YELLOW LED position
+        b       light_LED               @ light selected LED
+
 
 light_LED:
         @ r0 now contains the position with offset
@@ -492,7 +516,7 @@ decision_clockwise:
         mov     r3,r0                   @ save steps needed to r3
 
         mov     r0,#DirOut              @ set pin number for DirOut
-        bl      gp_set                  @ set direction of out to cw
+        bl      gp_clear                @ set direction of out to cw
 
 decision_clockwise_step:
         bl      turn_out                @ turn outlet, r3 will always be gt 0
@@ -509,7 +533,7 @@ decision_counterclock:
         mov     r3,r0                   @ save steps to r3
 
         mov     r0,#DirOut              @ pin of DirOut
-        bl      gp_clear                @ set Direction to ccw
+        bl      gp_set                  @ set Direction to ccw
 
 decision_counterclock_step:
         bl      turn_out                @ turn outlet
