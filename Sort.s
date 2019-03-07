@@ -350,6 +350,8 @@ sort:
         bl        wait
 
         mov       FLAGREG, #1           @ SET FLAG -> Secure at least one round
+        mov       TMPREG, #0
+        push      {TMPREG}              @ Init stack with value 0 -> emptyRounds counter
 
         @ if bedingungen
         @ turn cw wheel
@@ -377,7 +379,7 @@ check_object_sensor:
 check_color_sensor:
         bl        get_color               @ read color sensor
         cmp       RLDREG, #0
-        beq       stop                    @ no M&M in color position
+        beq       check_empty_rounds      @ no M&M in color position
 
 start_process:
         bl        turn_cw
@@ -385,15 +387,27 @@ start_process:
         bl        wait                    @ Start wait
 
         mov       r0, RLDREG              @ Set param(color/position) for TURN OUTLET
-
         bl        set_outlet
-
         b         check_flag              @ back to the beginning
+
+check_empty_rounds:
+        @ No M&M detected within the colorwheel.
+        @ Turn 3 times before ending the process because the colorsensor
+        @ may detect nothings although there is a M&M in that position.
+        @ emptyRounds is saved on stack
+        pop       {TMPREG}                @ get number emtpyRounds
+        cmp       TMPREG, #3
+        bge       stop                    @ if emptyRounds >= 3 -> Stop process
+
+        add       TMPREG, #1              @ Increase emptyRounds by 1
+        push      {TMPREG}                @ save value on stack
+        bl        turn_cw                 @ turn cw 90°
+        b         check_flag              @ continue from beginning
+
 
 stop:
         mov       r0, #GoStop             @ select Feeder StartStop pin
         bl        gp_clear                @ stop Feeder
-
 
         mov       r0, #nSLP           @ deactivate co processor
         bl        gp_clear            @ clear output pin
