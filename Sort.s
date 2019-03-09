@@ -37,26 +37,14 @@
         .equ      DEVICE_ARG,4                @ device address
         .equ      STACK_ARGS,8                @ sp already 8-byte aligned
 @ Center CW and Outlet Constants:
-        .equ      CENTER_CWSPEED,10           @ wait in ms for centering CW
-        .equ      CENTER_OUTSPEED,20          @ wait in ms for centering OUT
+        .equ      CENTER_CWSPEED,5           @ wait in ms for centering CW
+        .equ      CENTER_OUTSPEED,10          @ wait in ms for centering OUT
 @ Constants for LEDs
-        .equ      COLOR_RED,0xFF0000          @ RGB code for red
         .equ      POS_RED,2                   @ RED Led position in library
-        .equ      COLOR_GREEN,0x00FF00        @ RGB code for green
         .equ      POS_GREEN,1                 @ GREEN LED position
-        .equ      COLOR_BLUE,0x0000FF         @ RGB code for blue
         .equ      POS_BLUE,3                  @ BLUE LED position
-        .equ      COLOR_BROWN_H,0x66          @ highest byte of BROWN RGB
-        .equ      COLOR_BROWN_M,0x33          @ middle byte of BROWN RGB
-        .equ      COLOR_BROWN_L,0x00          @ lowest byte of BROWN RGB
         .equ      POS_BROWN,5                 @ BROWN LED position
-        .equ      COLOR_ORANGE_H,0xFF         @ highest byte of ORANGE RGB
-        .equ      COLOR_ORANGE_M,0x99         @ middle byte of ORANGE RGB
-        .equ      COLOR_ORANGE_L,0x00         @ lowest byte of ORAGNE RGB
         .equ      POS_ORANGE,6                @ ORANGE LED position
-        .equ      COLOR_YELLOW_H,0xFF         @ highest byte of YELLOW RGB
-        .equ      COLOR_YELLOW_M,0xFF         @ middle byte of YELLOW RGB
-        .equ      COLOR_YELLOW_L,0x00         @ lowest byte of YELLOW RGB
         .equ      POS_YELLOW,4                @ YELLOW LED position
 
 @ Pin names:
@@ -126,6 +114,7 @@ systimer_mmap_adr:
 systimer_mmap_fd:
         .word     0
 
+
 @ - END OF DATA SECTION @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
@@ -136,6 +125,7 @@ systimer_mmap_fd:
   @ externals for making use of std-functions
         .extern printf
         .extern WS2812RPi_Init
+        .extern WS2812RPi_DeInit
         .extern WS2812RPi_SetBrightness
         .extern WS2812RPi_Show
         .extern WS2812RPi_SetSingle
@@ -319,16 +309,43 @@ main:
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @       main program                                @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-sort:
+setup:
         bl        hw_init
 
         @ start config for outlet and LEDs ---------------------------
         mov       POSREG,#1             @ make sure starting pos is 1
         push      {GPIOREG}
+        bl        WS2812RPi_DeInit      @ clean up if not correctly
+                                        @ de initialised last time
         bl        WS2812RPi_Init        @ initialise LEDs
-
+        
         mov       r0,#100               @ Brightness for LEDs (0-100)
         bl        WS2812RPi_SetBrightness @ set Brightness for all LEDs
+
+        mov       r0,#1
+        ldr       r1,=0xFF0000
+        bl        WS2812RPi_SetSingle
+
+        mov       r0,#2
+        ldr       r1,=0xFF0000
+        bl        WS2812RPi_SetSingle
+
+        mov       r0,#3
+        ldr       r1,=0xFF0000
+        bl        WS2812RPi_SetSingle
+
+        mov       r0,#4
+        ldr       r1,=0xFF0000
+        bl        WS2812RPi_SetSingle
+
+        mov       r0,#5
+        ldr       r1,=0xFF0000
+        bl        WS2812RPi_SetSingle
+
+        mov       r0,#6
+        ldr       r1,=0xFF0000
+        bl        WS2812RPi_SetSingle
+
         bl        WS2812RPi_Show        @ Apply Brightness change
         pop       {GPIOREG}
         @ end of cfg ------------------------------------------------
@@ -343,22 +360,76 @@ sort:
         bl        startpos_out_init     @ outlet position init
         bl        startpos_cw_init      @ color wheel position init
 
+stop_sorting:
+        push      {GPIOREG}
+        mov       r0,#1
+        ldr       r1,=0x00FF00
+        bl        WS2812RPi_SetSingle
+
+        mov       r0,#2
+        ldr       r1,=0x00FF00
+        bl        WS2812RPi_SetSingle
+
+        mov       r0,#3
+        ldr       r1,=0x00FF00
+        bl        WS2812RPi_SetSingle
+
+        mov       r0,#4
+        ldr       r1,=0x00FF00
+        bl        WS2812RPi_SetSingle
+
+        mov       r0,#5
+        ldr       r1,=0x00FF00
+        bl        WS2812RPi_SetSingle
+
+        mov       r0,#6
+        ldr       r1,=0x00FF00
+        bl        WS2812RPi_SetSingle
+
+        bl        WS2812RPi_Show        @ Apply Brightness change
+        pop       {GPIOREG}
+
+check_start_and_end:
+        mov      r0,#8                @ pin for userBTN 1
+        bl       gp_read              @ get if pressed
+
+        cmp      RLDREG,#0            @ check if pressed
+        beq      sort                  @ if not pressed: loop
+                                      @ else start sorting
+        mov     r0,#10
+        bl      gp_read
+
+        cmp     RLDREG,#0
+        beq     stop
+
+        b       check_start_and_end 
+
+sort:
         mov       r0, #GoStop           @ select Feeder StartStop pin
         bl        gp_set                @ start Feeder
 
-        mov       WAITREG, #4000        @ wait 4s
+        push      {WAITREG}             @save emptyRounds
+        ldr       WAITREG, =0xFA0        @ wait 4s (4000ms)
         bl        wait
+        pop       {WAITREG}             @ restore emptyRounds
 
         mov       FLAGREG, #1           @ SET FLAG -> Secure at least one round
-        mov       TMPREG, #0
-        push      {TMPREG}              @ Init stack with value 0 -> emptyRounds counter
+        mov       WAITREG, #0           @ set emptyRounds to 0
+        
 
         @ if bedingungen
         @ turn cw wheel
         @ wait
-        @ in / decrease (optional)
+        @ in / decrease (counter, optional)
         @ outlet + lds
         @ b if bedingungen
+
+check_stop_button:
+        mov       r0,#9                 @ pin for userBTN 2
+        bl        gp_read               @ get if pressed
+
+        cmp       RLDREG,#0             @ check if pressed
+        beq       stop_sorting           @ stop sorting, wait 
 
 check_flag:
         cmp       FLAGREG, #1
@@ -382,13 +453,13 @@ check_color_sensor:
         beq       check_empty_rounds      @ no M&M in color position
 
 start_process:
-        pop       {TMPREG}                @ get emptyRounds counter from stack
-        mov       TMPREG, #0              @ set it to 0
-        push      {TMPREG}                @ move it back to the stack
+        mov       WAITREG, #0              @ set emptyRounds to 0
 
+        push      {WAITREG}
         bl        turn_cw
-        mov       WAITREG, #1000          @ Wait 1 s
+        ldr       WAITREG,=0x5DC          @ Wait 1.5 s
         bl        wait                    @ Start wait
+        pop       {WAITREG}
 
         mov       r0, RLDREG              @ Set param(color/position) for TURN OUTLET
         bl        set_outlet
@@ -399,29 +470,22 @@ check_empty_rounds:
         @ Turn 3 times before ending the process because the colorsensor
         @ may detect nothings although there is a M&M in that position.
         @ emptyRounds is saved on stack
-        pop       {TMPREG}                @ get number emtpyRounds
-        cmp       TMPREG, #3
-        bge       stop                    @ if emptyRounds >= 3 -> Stop process
+        cmp       WAITREG, #3
+        bge       stop_sorting             @ if emptyRounds >= 3 -> Stop process
+        add       WAITREG, #1              @ Increase emptyRounds by 1
 
-        add       TMPREG, #1              @ Increase emptyRounds by 1
-        push      {TMPREG}                @ save value on stack
+        bl        set_outlet
         bl        turn_cw                 @ turn cw 90°
+        push      {WAITREG}               @ save emptyRounds
+        ldr       WAITREG,=0x5DC          @ Value for 1.5s
+        bl        wait                    @wait 1.5s
+        pop       {WAITREG}               @ retrieve emptyRounds
         b         check_flag              @ continue from beginning
 
 
-stop:
-        mov       r0, #GoStop             @ select Feeder StartStop pin
-        bl        gp_clear                @ stop Feeder
 
-        mov       r0, #nSLP           @ deactivate co processor
-        bl        gp_clear            @ clear output pin
-        mov       r0, #nRSTOut        @ deactivate outlet engine
-        bl        gp_clear            @ clear output pin
-        mov       r0, #nRSTCW         @ deactivate color wheel engine
-        bl        gp_clear            @ clear output pin
 
-        mov       R7, #1
-        svc       0
+        
 
 @ --------------------------------------------------------------------
 @  Turns on the LED at the desired position. The Pos number is the
@@ -444,7 +508,6 @@ stop:
 @  return: none
 @ --------------------------------------------------------------------
 set_LED:
-        push    {lr}                    @ save lr
         mov     TMPREG,r0               @ save LED pos to compare
 
         cmp     TMPREG,#1               @ check if RED is the correct position
@@ -467,48 +530,36 @@ set_LED:
 
 
 red_LED:
-        mov     r1,#COLOR_RED           @ pass RED RGB code
+        ldr     r1,=0xFF0000            @ RED RGB code
         mov     r0,#POS_RED             @ pass RED LED position
         b       light_LED               @ light selected LED
 
 
 green_LED:
-        mov     r1,#COLOR_GREEN         @ pass GREEN RGB code
+        ldr     r1,=0x00FF00            @ GREEN RGB Code 
         mov     r0,#POS_GREEN           @ pass GREEN LED position
         b       light_LED               @ light selected LED
 
 blue_LED:
-        mov     r1,#COLOR_BLUE          @ pass BLUE RGB code
+        ldr     r1,=0x0000FF            @ BLUE RGB code 
         mov     r0,#POS_BLUE            @ pass BLUE LED position
         b       light_LED               @ light selected LED
 
 
 brown_LED:
-        mov     r1,#COLOR_BROWN_H         @ pass BROWN RGB code
-        lsl     r1,#8                    @ make room for next 8 bits
-        orr     r1,r1,#COLOR_BROWN_M     @ append middle byte
-        lsl     r1,#8                    @ make room for last 8 bits
-        orr     r1,r1,#COLOR_BROWN_L     @ append lowest byte
+        ldr     r1,=0x663300            @ BROWN RGB code
         mov     r0,#POS_BROWN           @ pass BROWN LED position
         b       light_LED               @ light selected LED
 
 
 orange_LED:
-        mov     r1,#COLOR_ORANGE_H        @ pass ORANGE RGB code
-        lsl     r1,#8                    @ make room for next 8 bits
-        orr     r1,r1,#COLOR_ORANGE_M     @ append middle byte
-        lsl     r1,#8                    @ make room for last 8 bits
-        orr     r1,r1,#COLOR_ORANGE_L   @ append lowest byte
+        ldr     r1,=0xFF9900            @ ORANGE RGB
         mov     r0,#POS_ORANGE          @ pass ORANGE LED position
         b       light_LED               @ light selected LED
 
 
 yellow_LED:
-        mov     r1,#COLOR_YELLOW_H      @ pass YELLOW RGB code
-        lsl     r1,#8                   @ make room for next 8 bits
-        orr     r1,r1,#COLOR_YELLOW_M   @ append middle byte
-        lsl     r1,#8                   @ make room for last 8 bits
-        orr     r1,r1,#COLOR_YELLOW_L   @ append lowest byte
+        ldr     r1,=0xFFFF00            @ YELLOW RGB
         mov     r0,#POS_YELLOW          @ pass YELLOW LED position
         b       light_LED               @ light selected LED
 
@@ -516,16 +567,14 @@ yellow_LED:
 light_LED:
         @ r0 now contains the position
         @ and r1 the needed color
-        push    {GPIOREG}               @ GPIOREG may be altered by function
+        push    {GPIOREG, lr}           @ GPIOREG may be altered by function, save lr
         push    {r0}                    @ r0 may be altered by function
         bl      WS2812RPi_SetSingle     @ Set which Led to light
         pop     {r0}                    @ retrieve LED pos for next call
         bl      WS2812RPi_SetOthersOff  @ Set other LEDs off
-
         bl      WS2812RPi_Show          @ Light LEDs
-        pop     {GPIOREG}               @ restore GPIOREG
-        pop     {lr}                    @ restore lr
-        bx      lr                      @ return to caller
+        pop     {GPIOREG, pc}           @ restore GPIOREG, close branch
+
 
 @ --------------------------------------------------------------------
 @ Get Color from Color Sensor, then light LED first and Turn Outlet in the needed
@@ -548,20 +597,20 @@ set_outlet:
         mov     r0,RLDREG               @ pass color val
         push	{POSREG, RLDREG, FLAGREG}
         bl      set_LED                 @ set led based on color
-        pop		{POSREG, RLDREG, FLAGREG}
+        pop     {POSREG, RLDREG, FLAGREG}
 
         @ the test if the outlet already is at the correct position happens
         @ after settign the LED soeven if the outlet doesnt turn, the LED
         @ will still light on
 
         cmp     RLDREG,POSREG           @ check if outlet already at pos
-        beq     turning_end          @ dont move outlet
+        beq     turning_end             @ dont move outlet
 
 still_turning:
         cmp     POSREG,#6               @ Check if POS reached ring edge
         beq     turning_edge            @ handle edge
 
-		bl		turn_out
+	bl	turn_out
         add     POSREG,POSREG,#1        @ increment position of outlet
         cmp     RLDREG,POSREG           @ check if destination reached
         beq     turning_end             @ reached destination, stop
@@ -582,8 +631,7 @@ turning_no_LED:
         pop     {GPIOREG}               @ restore
 
 turning_end:
-        pop     {lr}                    @ restore lr
-        bx      lr                      @ return to caller
+        pop     {pc}                    @ return to caller
 
 
 @ --------------------------------------------------------------------
@@ -659,8 +707,8 @@ startpos_out_center:
         #cmp       CNTREG,#0               @ if != 0: still moving, repeat
         #bne       startpos_out_center     @ if  = 0: in center, stop
 
-        pop       {lr}                    @ Jump back
-        bx        lr
+        pop       {pc}                    @ Jump back
+
 
 
 
@@ -672,24 +720,20 @@ startpos_out_center:
 startpos_cw_init:
         push      {lr}
         mov       r0,#DirCW             @ number of Outlet Dir pin
-        bl        gp_set                @ Set Outlet motor counter clockwise direction
+        bl        gp_set                @ Set CW motor counter clockwise direction
+
 
 startpos_move_cw_outside:
-		mov       r0,#nHallCW             @ hall sensor pin number
-        bl        gp_read                 @ get hall sensor value
-        cmp		  RLDREG, #0			  @ check if cw already inside
-        bne       startpos_cw			  @ cw is out of view
-
-        mov       r0,#DirCW               @ number of cw Dir pin
-        bl        gp_clear                @ Set cw motor clockwise direction
+        mov       r0,#nHallCW            @hall sensor pin
+        bl        gp_read               @get value
+        cmp       RLDREG,#1             @ check if outside
+        beq       startpos_cw           @ cw is outside FoV
 
         mov       r0,#1                   @ param: turn 1 step
-        mov       r1,#CENTER_OUTSPEED     @ param: wait 20ms
+        mov       r1,#CENTER_CWSPEED      @ param: wait 20ms
         bl        turn_cw_step            @ turn cw
 
-        mov       r0,#DirCW               @ number of cw Dir pin
-        bl        gp_set                  @ Set cw motor counter clockwise direction
-        b		  startpos_move_cw_outside@ Do again and check if outside
+        b         startpos_move_cw_outside @ Do again and check if outside
 
 startpos_cw:
         @ Idea:
@@ -732,8 +776,7 @@ startpos_cw_center:
         @cmp       CNTREG,#0               @ if != 0: still moving, repeat
         @bne       startpos_cw_center      @ if  = 0: in center, stop
 
-        pop       {lr}					  @ get lr back
-        bx        lr					  @ return
+        pop       {pc}			  @ return to caller
 
 
 @ --------------------------------------------------------------------
@@ -742,9 +785,9 @@ startpos_cw_center:
 @  return: none
 @ --------------------------------------------------------------------
 turn_out_step:
-		push      {lr}				  @ save lr
+	push      {lr}				  @ save lr
         mov       TMPREG, r0		  @ store steps in TMPREG
-        mov	      r3, r1			  @ store wait ms in r1
+        mov	  r3, r1			  @ store wait ms in r1
 
 turn_out_step_sub:
         mov       r0, #StepOut        @ set step high
@@ -759,8 +802,7 @@ turn_out_step_sub:
         cmp       TMPREG, #0          @ left steps == 0?
         bne       turn_out_step_sub   @ if not again
 
-        pop       {lr}				  @ get lr back
-        bx        lr                  @ close branch
+        pop       {pc}		          @ return to caller
 
 
 @ --------------------------------------------------------------------
@@ -769,10 +811,11 @@ turn_out_step_sub:
 @  return: none
 @ --------------------------------------------------------------------
 turn_out:
-		push      {lr}				  @ store lr
+	push      {lr}		      @ store lr
         mov       TMPREG, #67         @ do 67 steps ~ 60°
 
 turn_out_sub:
+        push      {WAITREG}
         mov       r0, #StepOut        @ set step high
         bl        gp_set              @ call gp_set
         mov       WAITREG, #5         @ Wait 5 ms
@@ -781,12 +824,12 @@ turn_out_sub:
         bl        gp_clear            @ set step low
         mov       WAITREG, #5         @ Wait 5 ms
         bl        wait                @ Start wait
+        pop       {WAITREG}
         sub       TMPREG, TMPREG, #1  @ Decrease step counter
         cmp       TMPREG, #0          @ left steps == 0?
         bne       turn_out_sub        @ if not again
 
-        pop       {lr}
-        bx        lr                  @ close branch
+        pop       {pc}                @return to caller
 
 
 @ --------------------------------------------------------------------
@@ -795,11 +838,12 @@ turn_out_sub:
 @  return: none
 @ --------------------------------------------------------------------
 turn_cw_step:
-		push      {lr}				  @ store lr
+	push      {lr}				  @ store lr
         mov       TMPREG, r0          @ Store amount steps
-        mov		  r3, r1			  @ Store wait ms
+        mov	  r3, r1			  @ Store wait ms
 
 turn_cw_step_sub:
+        push      {WAITREG}
         mov       r0, #StepCW         @ define pin
         bl        gp_set              @ set StepCW high
         mov       WAITREG, r3         @ Wait r1 ms
@@ -808,12 +852,12 @@ turn_cw_step_sub:
         bl        gp_clear            @ set StepCW low
         mov       WAITREG, r3         @ Wait r1 ms
         bl        wait                @ Start wait
+        pop       {WAITREG}
         sub       TMPREG, TMPREG, #1  @ Decrease step counter
         cmp       TMPREG, #0          @ left steps == 0?
         bne       turn_cw_step_sub    @ if not again
 
-        pop       {lr}				  @ get lr back
-        bx        lr                  @ close branch
+        pop       {pc}				  @ return to caller
 
 @ --------------------------------------------------------------------
 @ Move Color-Wheel 90°.
@@ -822,11 +866,12 @@ turn_cw_step_sub:
 @ --------------------------------------------------------------------
 turn_cw:
         push      {lr}
-        mov       TMPREG, #400        	  @ Store 400 steps
+        ldr       TMPREG,=0x190           @ store 400 steps
         mov       r0, #DirCW          	  @ rotate clockwise
         bl        gp_clear            	  @ call gp_clear
 
 turn_cw_sub:
+        push      {WAITREG}
         mov       r0, #StepCW             @ set step high
         bl        gp_set                  @ call gp_set
         mov       WAITREG, #3             @ Wait 3 ms
@@ -835,12 +880,12 @@ turn_cw_sub:
         bl        gp_clear                @ set step low
         mov       WAITREG, #3             @ Wait 3 ms
         bl        wait                    @ Start wait
+        pop       {WAITREG}
         sub       TMPREG, TMPREG, #1      @ Decrease step counter
         cmp       TMPREG, #0              @ left steps == 0?
         bne       turn_cw_sub             @ if not again
 
-        pop       {lr}
-        bx        lr                      @ close branch
+        pop       {pc}                    @return to caller
 
 
 @ --------------------------------------------------------------------
@@ -849,7 +894,7 @@ turn_cw_sub:
 @  return: none
 @ --------------------------------------------------------------------
 wait:
-        mov       r0, #237				  @ store 237
+        mov       r0, #237		  @ store 237
         lsl       r0, #11                 @ shift 237 to 485376 in r0
 
 wait_do:
@@ -872,7 +917,7 @@ wait_do:
 @  return: RLDREG - color position
 @ --------------------------------------------------------------------
 get_color:
-		push	  {lr}
+	push	  {lr}
         mov       r0,#colorBit2           @ first color Bit
         bl        gp_read                 @ read pin23 level
         mov       r3,RLDREG               @ store return val to r1
@@ -885,8 +930,7 @@ get_color:
         bl        gp_read                 @ read pin24 level
         orr       r3,r3,RLDREG            @ store return val to rightmost bit
         mov       RLDREG, r3              @ return r1
-		pop		  {lr}
-        bx        lr                      @ close branch
+	pop	  {pc}                    @ return to caller
 
 
 @ --------------------------------------------------------------------
@@ -897,7 +941,8 @@ get_color:
 gp_set:
         mov       r1,#1                  @ prepare bitmask
         lsl       r1,r0                  @ shift 1 to position of pin passed in r0
-        str       r1,[GPIOREG,#0x1C]     @ Write mask to GPSET0
+        ldr       r0,=0x1C               @ load Value
+        str       r1,[GPIOREG, r0]       @ Write mask to GPSET0
         bx        lr                     @ return
 
 @ --------------------------------------------------------------------
@@ -908,7 +953,8 @@ gp_set:
 gp_clear:
         mov       r1,#1                  @ prepare bitmask
         lsl       r1,r0                  @ shift to position of pin
-        str       r1,[GPIOREG,#0x28]     @ Write to GPCLR0
+        ldr       r0,=0x28               @ Load Value
+        str       r1,[GPIOREG,r0]        @ Write to GPCLR0
         bx        lr                     @ return
 
 @ --------------------------------------------------------------------
@@ -926,9 +972,9 @@ gp_clear:
 gp_read:
         mov       r1,#1                 @ prepare bitmask
         lsl       r1,r0                 @ shift to position of pin
-        ldr       r2,[GPIOREG,#0x34]
+        ldr       r2,[GPIOREG,#0x34]    @ load GPLEV0
         and       r1,r1,r2              @ r1 is now either 1 or 0
-        lsr		  r1,r0
+        lsr	  r1,r0                 @shift possible 1 to right end
         mov       RLDREG, r1            @ mov result to return register
 
         bx        lr                    @ return
@@ -1063,9 +1109,10 @@ hw_init:
         lsl       r2,#21                        @  left shift 1 to bit pos 21 (FSEL17)
         orr       r1,r1,r2                      @  add config to bit mask in r1
 
-        mov       r2,#1                         @ GPIO18: prepare r2 with 1 for shift
-        lsl       r2,#24                         @  left shift 1 to bit pos 24 (FSEL18)
-        orr       r1,r1,r2                      @  add config to bit mask in r1
+        @ Pin 18 will be configured by WS2812RPi library
+        @mov       r2,#1                         @ GPIO18: prepare r2 with 1 for shift
+        @lsl       r2,#24                         @  left shift 1 to bit pos 24 (FSEL18)
+        @orr       r1,r1,r2                      @  add config to bit mask in r1
 
         mov       r2,#1                         @ GPIO19: prepare r2 with 1 for shift
         lsl       r2,#27                        @  left shift 1 to bit pos 27 (FSEL19)
@@ -1104,6 +1151,50 @@ timerIR:
         .word     PERIPH+TIMERIR_OFFSET
 sysTimer:
         .word     PERIPH+SYSTIMER_OFFSET
+
+
+@ --------------------------------------------------------------------------------------------------------------------
+@
+@ END OF APPLICATION
+@
+@ --------------------------------------------------------------------------------------------------------------------
+stop:
+        mov       r0, #GoStop             @ select Feeder StartStop pin
+        bl        gp_clear                @ stop Feeder
+
+        mov       r0, #nSLP           @ deactivate co processor
+        bl        gp_clear            @ clear output pin
+        mov       r0, #nRSTOut        @ deactivate outlet engine
+        bl        gp_clear            @ clear output pin
+        mov       r0, #nRSTCW         @ deactivate color wheel engine
+        bl        gp_clear            @ clear output pin
+
+        push      {GPIOREG}
+        bl        WS2812RPi_AllOff     @ set all LEDs off
+        bl        WS2812RPi_Show       @ Apply Brightness change
+        bl        WS2812RPi_DeInit
+        pop       {GPIOREG}
+
+        ldr       r1, =gpio_mmap_adr          @ reload the addr for accessing the GPIOs
+        ldr       r0, [r1]                    @ memory to unmap
+        mov       r1, #PAGE_SIZE              @ amount we mapped
+        bl        munmap                      @ unmap it
+        ldr       r1, =gpio_mmap_fd           @ reload the addr for accessing the GPIOs
+        ldr       r0, [r1]                    @ memory to unmap
+        bl        close                       @ close the file
+
+        ldr       r1, =timerir_mmap_adr       @ reload the addr for accessing the Timer + IR
+        ldr       r0, [r1]                    @ memory to unmap
+        mov       r1, #PAGE_SIZE              @ amount we mapped
+        bl        munmap                      @ unmap it
+        ldr       r1, =timerir_mmap_fd        @ reload the addr for accessing the Timer + IR
+        ldr       r0, [r1]                    @ memory to unmap
+        bl        close                       @ close the file
+
+        mov       r0, #0                      @ return code 0
+        mov       r7, #1                      @ exit app
+        svc       0
+        .end
 
 
 @ - END OF TEXT SECTION   @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
