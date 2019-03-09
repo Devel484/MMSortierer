@@ -396,7 +396,7 @@ check_start_and_end:
         cmp      RLDREG,#0            @ check if pressed
         beq      sort                  @ if not pressed: loop
                                       @ else start sorting
-        mov     r0,#10
+        mov     r0,#9                  @pin for userBTN 2
         bl      gp_read
 
         cmp     RLDREG,#0
@@ -425,7 +425,7 @@ sort:
         @ b if bedingungen
 
 check_stop_button:
-        mov       r0,#9                 @ pin for userBTN 2
+        mov       r0,#10                 @ pin for userBTN 3
         bl        gp_read               @ get if pressed
 
         cmp       RLDREG,#0             @ check if pressed
@@ -474,8 +474,9 @@ check_empty_rounds:
         bge       stop_sorting             @ if emptyRounds >= 3 -> Stop process
         add       WAITREG, #1              @ Increase emptyRounds by 1
 
-        bl        set_outlet
+       
         bl        turn_cw                 @ turn cw 90°
+        bl        set_outlet
         push      {WAITREG}               @ save emptyRounds
         ldr       WAITREG,=0x5DC          @ Value for 1.5s
         bl        wait                    @wait 1.5s
