@@ -396,7 +396,7 @@ check_start_and_end:
         cmp      RLDREG,#0            @ check if pressed
         beq      sort                  @ if not pressed: loop
                                       @ else start sorting
-        mov     r0,#9                  @pin for userBTN 2
+        mov     r0,#10                  @pin for userBTN 2
         bl      gp_read
 
         cmp     RLDREG,#0
@@ -425,7 +425,7 @@ sort:
         @ b if bedingungen
 
 check_stop_button:
-        mov       r0,#10                 @ pin for userBTN 3
+        mov       r0,#9                 @ pin for userBTN 3
         bl        gp_read               @ get if pressed
 
         cmp       RLDREG,#0             @ check if pressed
@@ -455,15 +455,15 @@ check_color_sensor:
 start_process:
         mov       WAITREG, #0              @ set emptyRounds to 0
 
-        push      {WAITREG}
         bl        turn_cw
+        push      {WAITREG}
         ldr       WAITREG,=0x5DC          @ Wait 1.5 s
         bl        wait                    @ Start wait
         pop       {WAITREG}
 
         mov       r0, RLDREG              @ Set param(color/position) for TURN OUTLET
         bl        set_outlet
-        b         check_flag              @ back to the beginning
+        b         check_stop_button              @ back to the beginning
 
 check_empty_rounds:
         @ No M&M detected within the colorwheel.
@@ -473,15 +473,16 @@ check_empty_rounds:
         cmp       WAITREG, #3
         bge       stop_sorting             @ if emptyRounds >= 3 -> Stop process
         add       WAITREG, #1              @ Increase emptyRounds by 1
-
-       
         bl        turn_cw                 @ turn cw 90°
-        bl        set_outlet
+
         push      {WAITREG}               @ save emptyRounds
         ldr       WAITREG,=0x5DC          @ Value for 1.5s
         bl        wait                    @wait 1.5s
         pop       {WAITREG}               @ retrieve emptyRounds
-        b         check_flag              @ continue from beginning
+        
+        bl        set_outlet
+        
+        b         check_stop_button              @ continue from beginning
 
 
 
@@ -786,7 +787,7 @@ startpos_cw_center:
 @  return: none
 @ --------------------------------------------------------------------
 turn_out_step:
-	push      {lr}				  @ save lr
+	push      {WAITREG, lr}				  @ save lr
         mov       TMPREG, r0		  @ store steps in TMPREG
         mov	  r3, r1			  @ store wait ms in r1
 
@@ -797,13 +798,13 @@ turn_out_step_sub:
         bl        wait                @ Start wait
         mov       r0, #StepOut        @ set step high
         bl        gp_clear            @ set step low
-        mov       WAITREG, r3         @ Wait r1 ms
+        mov       WAITREG, r3         @ Wait r1 ms,
         bl        wait                @ Start wait
         sub       TMPREG, TMPREG, #1  @ Decrease step counter
         cmp       TMPREG, #0          @ left steps == 0?
         bne       turn_out_step_sub   @ if not again
 
-        pop       {pc}		          @ return to caller
+        pop       {WAITREG, pc}		          @ return to caller
 
 
 @ --------------------------------------------------------------------
@@ -812,25 +813,23 @@ turn_out_step_sub:
 @  return: none
 @ --------------------------------------------------------------------
 turn_out:
-	push      {lr}		      @ store lr
+	push      {WAITREG, lr}		      @ store lr
         mov       TMPREG, #67         @ do 67 steps ~ 60°
 
 turn_out_sub:
-        push      {WAITREG}
         mov       r0, #StepOut        @ set step high
         bl        gp_set              @ call gp_set
-        mov       WAITREG, #5         @ Wait 5 ms
+        mov       WAITREG, #1         @ Wait 2 ms
         bl        wait                @ Start wait
         mov       r0, #StepOut        @ set step high
         bl        gp_clear            @ set step low
-        mov       WAITREG, #5         @ Wait 5 ms
+        mov       WAITREG, #1         @ Wait 2 ms
         bl        wait                @ Start wait
-        pop       {WAITREG}
         sub       TMPREG, TMPREG, #1  @ Decrease step counter
         cmp       TMPREG, #0          @ left steps == 0?
         bne       turn_out_sub        @ if not again
 
-        pop       {pc}                @return to caller
+        pop       {WAITREG, pc}                @return to caller
 
 
 @ --------------------------------------------------------------------
@@ -839,12 +838,11 @@ turn_out_sub:
 @  return: none
 @ --------------------------------------------------------------------
 turn_cw_step:
-	push      {lr}				  @ store lr
+	push      {WAITREG, lr}				  @ store lr
         mov       TMPREG, r0          @ Store amount steps
         mov	  r3, r1			  @ Store wait ms
 
 turn_cw_step_sub:
-        push      {WAITREG}
         mov       r0, #StepCW         @ define pin
         bl        gp_set              @ set StepCW high
         mov       WAITREG, r3         @ Wait r1 ms
@@ -853,12 +851,11 @@ turn_cw_step_sub:
         bl        gp_clear            @ set StepCW low
         mov       WAITREG, r3         @ Wait r1 ms
         bl        wait                @ Start wait
-        pop       {WAITREG}
         sub       TMPREG, TMPREG, #1  @ Decrease step counter
         cmp       TMPREG, #0          @ left steps == 0?
         bne       turn_cw_step_sub    @ if not again
 
-        pop       {pc}				  @ return to caller
+        pop       {WAITREG, pc}				  @ return to caller
 
 @ --------------------------------------------------------------------
 @ Move Color-Wheel 90°.
@@ -866,27 +863,25 @@ turn_cw_step_sub:
 @  return: none
 @ --------------------------------------------------------------------
 turn_cw:
-        push      {lr}
+        push      {WAITREG, lr}
         ldr       TMPREG,=0x190           @ store 400 steps
         mov       r0, #DirCW          	  @ rotate clockwise
         bl        gp_clear            	  @ call gp_clear
 
 turn_cw_sub:
-        push      {WAITREG}
         mov       r0, #StepCW             @ set step high
         bl        gp_set                  @ call gp_set
-        mov       WAITREG, #3             @ Wait 3 ms
+        mov       WAITREG, #1             @ Wait 1 ms
         bl        wait                    @ Start wait
         mov       r0, #StepCW             @ set step high
         bl        gp_clear                @ set step low
-        mov       WAITREG, #3             @ Wait 3 ms
+        mov       WAITREG, #1             @ Wait 1 ms
         bl        wait                    @ Start wait
-        pop       {WAITREG}
         sub       TMPREG, TMPREG, #1      @ Decrease step counter
         cmp       TMPREG, #0              @ left steps == 0?
         bne       turn_cw_sub             @ if not again
 
-        pop       {pc}                    @return to caller
+        pop       {WAITREG, pc}                    @return to caller
 
 
 @ --------------------------------------------------------------------
