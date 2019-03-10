@@ -159,7 +159,7 @@ main:
         sub       sp, sp, #STACK_ARGS         @ sp on 8-byte boundary
 
         @ open /dev/gpiomem for read/write and syncing
-        ldr       r0, =gpiomem                 @ address of /dev/gpiomem
+        ldr       r0, =gpiomem                @ address of /dev/gpiomem
         ldr       r1, openMode                @ flags for accessing device
         bl        open
         mov       r4, r0                      @ use r4 for file descriptor
@@ -322,11 +322,11 @@ setup:
         bl        hw_init
 
         @ start config for outlet and LEDs ---------------------------
-        mov       POSREG,#1             @ make sure starting pos is 1
+        mov       POSREG,#1               @ make sure starting pos is 1
         push      {GPIOREG}
-        bl        WS2812RPi_DeInit      @ clean up if not correctly
-                                        @ de initialised last time
-        bl        WS2812RPi_Init        @ initialise LEDs
+        bl        WS2812RPi_DeInit        @ clean up if not correctly
+                                          @ de initialised last time
+        bl        WS2812RPi_Init          @ initialise LEDs
         
         @ Startup of machine: all LEDs RED
         mov       r0,#100                 @ Brightness for LEDs (0-100)
@@ -356,16 +356,16 @@ setup:
         ldr       r1,=0xFF0000
         bl        WS2812RPi_SetSingle
 
-        bl        WS2812RPi_Show        @ Apply Brightness change
+        bl        WS2812RPi_Show          @ Apply Brightness change
         pop       {GPIOREG}
         @ end of cfg ------------------------------------------------
 
-        mov       r0, #nSLP           @ activate co process
-        bl        gp_set              @ call gp_set
-        mov       r0, #nRSTOut        @ activate outlet engine
-        bl        gp_set              @ call gp_set
-        mov       r0, #nRSTCW         @ activate color wheel engine
-        bl        gp_set              @ call gp_set
+        mov       r0, #nSLP             @ activate co process
+        bl        gp_set                @ call gp_set
+        mov       r0, #nRSTOut          @ activate outlet engine
+        bl        gp_set                @ call gp_set
+        mov       r0, #nRSTCW           @ activate color wheel engine
+        bl        gp_set                @ call gp_set
 
         bl        startpos_out_init     @ outlet position init
         bl        startpos_cw_init      @ color wheel position init
@@ -378,7 +378,7 @@ stop_sorting:
         push      {GPIOREG}     
         mov       r0,#1                 @ LED 1 number
         ldr       r1,=0x00FF00          @ RGB value GREEN
-        bl        WS2812RPi_SetSingle   @activate
+        bl        WS2812RPi_SetSingle   @ activate
 
         mov       r0,#2                 @ LED 2
         ldr       r1,=0x00FF00
@@ -413,18 +413,18 @@ stop_sorting:
 @   ending the program entirely.
 @ --------------------------------------------------------------
 check_start_and_end:
-        mov      r0,#nBTN1                @ pin for start Button
-        bl       gp_read              @ get if pressed
+        mov      r0,#nBTN1              @ pin for start Button
+        bl       gp_read                @ get if pressed
 
-        cmp      RLDREG,#0            @ check if pressed
-        beq      sort                 @ if pressed: start sorting
-        mov      r0,#nBTN3               @ pin for end program button
-        bl       gp_read              @ get if pressed
+        cmp      RLDREG,#0              @ check if pressed
+        beq      sort                   @ if pressed: start sorting
+        mov      r0,#nBTN3              @ pin for end program button
+        bl       gp_read                @ get if pressed
 
-        cmp     RLDREG,#0             @ check if pressed
-        beq     stop                  @ if pressed: end program
+        cmp     RLDREG,#0               @ check if pressed
+        beq     stop                    @ if pressed: end program
 
-        b       check_start_and_end   @ else loop and check again
+        b       check_start_and_end     @ else loop and check again
 
 sort:
         mov       r0, #GoStop           @ select Feeder StartStop pin
@@ -446,7 +446,7 @@ check_stop_button:
         bl        gp_read               @ get if pressed
 
         cmp       RLDREG,#0             @ check if pressed
-        beq       stop_sorting           @ stop sorting, wait 
+        beq       stop_sorting          @ stop sorting, wait 
 
 @ --------------------------------------------------------------------
 @ This detects if there is an MM in any of the possible sensors (color, Outlet Sensor).
@@ -483,7 +483,7 @@ start_process:
         ldr       WAITREG,=0x5DC          @ Wait 1.5 s
         bl        wait                    @ to give time fo color read, droppping
 
-        mov       WAITREG, #0              @ set emptyRounds to 0
+        mov       WAITREG, #0             @ set emptyRounds to 0
 
         bl        set_outlet              @ move outlet and light LEDs
         b         check_stop_button       @ restart cycle
@@ -494,8 +494,8 @@ check_empty_rounds:
         @ may detect nothings although there is a M&M in that position.
         @ emptyRounds is saved on stack
         cmp       WAITREG, #3
-        bge       stop_sorting             @ if emptyRounds >= 3 -> Stop process
-        add       WAITREG, #1              @ Increase emptyRounds by 1
+        bge       stop_sorting            @ if emptyRounds >= 3 -> Stop process
+        add       WAITREG, #1             @ Increase emptyRounds by 1
         bl        turn_cw                 @ turn cw 90°
 
         push      {WAITREG}               @ save emptyRounds
@@ -548,7 +548,7 @@ set_LED:
         beq     orange_LED              @ continue with BROWN vals
 
         cmp     TMPREG,#6               @ check if YELLOW is the correct color
-        b       yellow_LED               @ continue with YELLOW vals
+        b       yellow_LED              @ continue with YELLOW vals
 
 
 red_LED:
@@ -610,59 +610,59 @@ light_LED:
 @  return: none
 @ --------------------------------------------------------------------
 set_outlet:
-        push    {lr}                    @ save link register
-        bl      get_color               @ fetch current color at hall sensor
+        push    {lr}                      @ save link register
+        bl      get_color                 @ fetch current color at hall sensor
 
-        cmp     RLDREG,#0               @ check if no color read
-        beq     turning_end             @ dont move outlet
+        cmp     RLDREG,#0                 @ check if no color read
+        beq     turning_end               @ dont move outlet
 
-        cmp     RLDREG,#COLOR_ALL       @ all bits active, case undefined
-        beq     color_undefined         @ handle undefined case
+        cmp     RLDREG,#COLOR_ALL         @ all bits active, case undefined
+        beq     color_undefined           @ handle undefined case
 
-        mov     r0,RLDREG               @ pass color val
+        mov     r0,RLDREG                 @ pass color val
 
         push	{POSREG, RLDREG, FLAGREG} @ save important values: 
                                           @ Positionon of outlet, Color read 
                                           @ and MM found flag
 
         bl      set_LED                   @ set led based on color
-        pop     {POSREG, RLDREG, FLAGREG} @restore values
+        pop     {POSREG, RLDREG, FLAGREG} @ restore values
 
         @ the test if the outlet already is at the correct position happens
         @ after setting the LED so even if the outlet doesnt turn, the LED
         @ will still light on
 
-        cmp     RLDREG,POSREG           @ check if outlet already at pos
-        beq     turning_end             @ dont move outlet
+        cmp     RLDREG,POSREG             @ check if outlet already at pos
+        beq     turning_end               @ dont move outlet
 
         
 
 still_turning:
-        cmp     POSREG,#6               @ Check if POS reached ring edge
-        beq     turning_edge            @ handle edge
+        cmp     POSREG,#6                @ Check if POS reached ring edge
+        beq     turning_edge             @ handle edge
 
 	bl	turn_out
-        add     POSREG,POSREG,#1        @ increment position of outlet
-        cmp     RLDREG,POSREG           @ check if destination reached
-        beq     turning_end             @ reached destination, stop
-        b       still_turning           @ didnt reach, continue
+        add     POSREG,POSREG,#1         @ increment position of outlet
+        cmp     RLDREG,POSREG            @ check if destination reached
+        beq     turning_end              @ reached destination, stop
+        b       still_turning            @ didnt reach, continue
 
 turning_edge:
-        mov     POSREG,#1               @ set pos to ring min
-        bl      turn_out                @ turn outlet 60°
+        mov     POSREG,#1                @ set pos to ring min
+        bl      turn_out                 @ turn outlet 60°
 
-        cmp     POSREG,RLDREG           @check if at destination
-        beq     turning_end             @reached destination, end
-        b       still_turning           @didnt reach, continue
+        cmp     POSREG,RLDREG            @ check if at destination
+        beq     turning_end              @ reached destination, end
+        b       still_turning            @ didnt reach, continue
 
 turning_no_LED:
-        push    {GPIOREG}               @ GPIO will be altered in library functions
-        bl      WS2812RPi_AllOff        @ deactivate all LEDs
-        bl      WS2812RPi_Show          @ apply changes
-        pop     {GPIOREG}               @ restore
+        push    {GPIOREG}                @ GPIO will be altered in library functions
+        bl      WS2812RPi_AllOff         @ deactivate all LEDs
+        bl      WS2812RPi_Show           @ apply changes
+        pop     {GPIOREG}                @ restore
 
 turning_end:
-        pop     {pc}                    @ return to caller
+        pop     {pc}                     @ return to caller
 
 color_undefined:
         @ add handling of all color Bits on
@@ -678,26 +678,26 @@ color_undefined:
 @  return: none
 @ --------------------------------------------------------------------
 startpos_out_init:
-        push      {lr}                    @ save return adress
-        mov       r0,#DirOut              @ number of Outlet Dir pin
-        bl        gp_set                  @ Set Outlet motor counter clockwise direction
+        push      {lr}                          @ save return adress
+        mov       r0,#DirOut                    @ number of Outlet Dir pin
+        bl        gp_set                        @ Set Outlet motor counter clockwise direction
 
 startpos_move_out_outside:
-        mov       r0,#nHallOutlet         @ hall sensor pin number
-        bl        gp_read                 @ get hall sensor value
-        cmp       RLDREG, #0	          @ check if outlet already inside
-        bne       startpos_out	          @ outlet is out of view
+        mov       r0,#nHallOutlet               @ hall sensor pin number
+        bl        gp_read                       @ get hall sensor value
+        cmp       RLDREG, #0	                @ check if outlet already inside
+        bne       startpos_out	                @ outlet is out of view
 
-        mov       r0,#DirOut              @ number of Outlet Dir pin
-        bl        gp_clear                @ Set Outlet motor clockwise direction
+        mov       r0,#DirOut                    @ number of Outlet Dir pin
+        bl        gp_clear                      @ Set Outlet motor clockwise direction
 
-        mov       r0,#1                   @ param: turn 1 step
-        mov       r1,#CENTER_OUTSPEED     @ param: wait 20ms
-        bl        turn_out_step           @ turn outlet
+        mov       r0,#1                         @ param: turn 1 step
+        mov       r1,#CENTER_OUTSPEED           @ param: wait 20ms
+        bl        turn_out_step                 @ turn outlet
 
-        mov       r0,#DirOut              @ number of Outlet Dir pin
-        bl        gp_set                  @ Set Outlet motor counter clockwise direction
-        b         startpos_move_out_outside @ Do again and check if outside
+        mov       r0,#DirOut                    @ number of Outlet Dir pin
+        bl        gp_set                        @ Set Outlet motor counter clockwise direction
+        b         startpos_move_out_outside     @ Do again and check if outside
 
 
 startpos_out:
@@ -734,7 +734,7 @@ startpos_out_inside:
         bl        gp_clear                @ invert outlet turn direction
 
 startpos_out_center:
-        mov       r0,CNTREG              @ param: turn CNTREG step
+        mov       r0,CNTREG               @ param: turn CNTREG step
         mov       r1,#CENTER_OUTSPEED     @ param: wait 20ms
         bl        turn_out_step           @ turn outlet
 
@@ -750,21 +750,21 @@ startpos_out_center:
 @ --------------------------------------------------------------------
 startpos_cw_init:
         push      {lr}
-        mov       r0,#DirCW             @ number of Outlet Dir pin
-        bl        gp_set                @ Set CW motor counter clockwise direction
+        mov       r0,#DirCW                     @ number of Outlet Dir pin
+        bl        gp_set                        @ Set CW motor counter clockwise direction
 
 
 startpos_move_cw_outside:
-        mov       r0,#nHallCW            @hall sensor pin
-        bl        gp_read               @get value
-        cmp       RLDREG,#1             @ check if outside
-        beq       startpos_cw           @ cw is outside FoV
+        mov       r0,#nHallCW                   @ hall sensor pin
+        bl        gp_read                       @ get value
+        cmp       RLDREG,#1                     @ check if outside
+        beq       startpos_cw                   @ cw is outside FoV
 
-        mov       r0,#1                   @ param: turn 1 step
-        mov       r1,#CENTER_CWSPEED      @ param: wait 20ms
-        bl        turn_cw_step            @ turn cw
+        mov       r0,#1                         @ param: turn 1 step
+        mov       r1,#CENTER_CWSPEED            @ param: wait 20ms
+        bl        turn_cw_step                  @ turn cw
 
-        b         startpos_move_cw_outside @ Do again and check if outside
+        b         startpos_move_cw_outside      @ Do again and check if outside
 
 startpos_cw:
         @ Idea:
@@ -812,24 +812,24 @@ startpos_cw_center:
 @  return: none
 @ --------------------------------------------------------------------
 turn_out_step:
-	push      {WAITREG, lr}				  @ save lr
-        mov       TMPREG, r0		  @ store steps in TMPREG
-        mov	  r3, r1			  @ store wait ms in r1
+	push      {WAITREG, lr}		@ save lr
+        mov       TMPREG, r0		@ store steps in TMPREG
+        mov	  r3, r1	        @ store wait ms in r1
 
 turn_out_step_sub:
-        mov       r0, #StepOut        @ set step high
-        bl        gp_set              @ call gp_set
-        mov       WAITREG, r3         @ Wait r1 ms
-        bl        wait                @ Start wait
-        mov       r0, #StepOut        @ set step high
-        bl        gp_clear            @ set step low
-        mov       WAITREG, r3         @ Wait r1 ms,
-        bl        wait                @ Start wait
-        sub       TMPREG, TMPREG, #1  @ Decrease step counter
-        cmp       TMPREG, #0          @ left steps == 0?
-        bne       turn_out_step_sub   @ if not again
+        mov       r0, #StepOut          @ set step high
+        bl        gp_set                @ call gp_set
+        mov       WAITREG, r3           @ Wait r1 ms
+        bl        wait                  @ Start wait
+        mov       r0, #StepOut          @ set step high
+        bl        gp_clear              @ set step low
+        mov       WAITREG, r3           @ Wait r1 ms,
+        bl        wait                  @ Start wait
+        sub       TMPREG, TMPREG, #1    @ Decrease step counter
+        cmp       TMPREG, #0            @ left steps == 0?
+        bne       turn_out_step_sub     @ if not again
 
-        pop       {WAITREG, pc}		          @ return to caller
+        pop       {WAITREG, pc}		@ return to caller
 
 
 @ --------------------------------------------------------------------
@@ -838,7 +838,7 @@ turn_out_step_sub:
 @  return: none
 @ --------------------------------------------------------------------
 turn_out:
-	push      {WAITREG, lr}		      @ store lr
+	push      {WAITREG, lr}	      @ store lr
         mov       TMPREG, #67         @ do 67 steps ~ 60°
 
 turn_out_sub:
@@ -854,7 +854,7 @@ turn_out_sub:
         cmp       TMPREG, #0          @ left steps == 0?
         bne       turn_out_sub        @ if not again
 
-        pop       {WAITREG, pc}                @return to caller
+        pop       {WAITREG, pc}       @return to caller
 
 
 @ --------------------------------------------------------------------
@@ -863,9 +863,9 @@ turn_out_sub:
 @  return: none
 @ --------------------------------------------------------------------
 turn_cw_step:
-	push      {WAITREG, lr}				  @ store lr
+	push      {WAITREG, lr}	      @ store lr
         mov       TMPREG, r0          @ Store amount steps
-        mov	  r3, r1			  @ Store wait ms
+        mov	  r3, r1	      @ Store wait ms
 
 turn_cw_step_sub:
         mov       r0, #StepCW         @ define pin
@@ -880,7 +880,7 @@ turn_cw_step_sub:
         cmp       TMPREG, #0          @ left steps == 0?
         bne       turn_cw_step_sub    @ if not again
 
-        pop       {WAITREG, pc}				  @ return to caller
+        pop       {WAITREG, pc}	      @ return to caller
 
 @ --------------------------------------------------------------------
 @ Move Color-Wheel 90°.
@@ -906,7 +906,7 @@ turn_cw_sub:
         cmp       TMPREG, #0              @ left steps == 0?
         bne       turn_cw_sub             @ if not again
 
-        pop       {WAITREG, pc}                    @return to caller
+        pop       {WAITREG, pc}           @ return to caller
 
 
 @ --------------------------------------------------------------------
@@ -995,7 +995,7 @@ gp_read:
         lsl       r1,r0                 @ shift to position of pin
         ldr       r2,[GPIOREG,#0x34]    @ load GPLEV0
         and       r1,r1,r2              @ r1 is now either 1 or 0
-        lsr	  r1,r0                 @shift possible 1 to right end
+        lsr	  r1,r0                 @ shift possible 1 to right end
         mov       RLDREG, r1            @ mov result to return register
 
         bx        lr                    @ return
@@ -1123,7 +1123,7 @@ hw_init:
         orr       r1,r1,r2                      @  add config to bit mask in r1
 
         mov       r2,#1                         @ GPIO16: prepare r2 with 1 for shift
-        lsl       r2,#18                         @  left shift 1 to bit pos 18 (FSEL16)
+        lsl       r2,#18                        @  left shift 1 to bit pos 18 (FSEL16)
         orr       r1,r1,r2                      @  add config to bit mask in r1
 
         mov       r2,#1                         @ GPIO17: prepare r2 with 1 for shift
@@ -1131,9 +1131,9 @@ hw_init:
         orr       r1,r1,r2                      @  add config to bit mask in r1
 
         @ Pin 18 will be configured by WS2812RPi library
-        @mov       r2,#1                         @ GPIO18: prepare r2 with 1 for shift
-        @lsl       r2,#24                         @  left shift 1 to bit pos 24 (FSEL18)
-        @orr       r1,r1,r2                      @  add config to bit mask in r1
+        @mov       r2,#1                        @ GPIO18: prepare r2 with 1 for shift
+        @lsl       r2,#24                       @  left shift 1 to bit pos 24 (FSEL18)
+        @orr       r1,r1,r2                     @  add config to bit mask in r1
 
         mov       r2,#1                         @ GPIO19: prepare r2 with 1 for shift
         lsl       r2,#27                        @  left shift 1 to bit pos 27 (FSEL19)
@@ -1146,12 +1146,12 @@ hw_init:
         mov       r1,#0                         @ make sure r1 is 0 -> bit mask
 
         mov       r2,#1                         @ GPIO26: prepare r2 with 1 for shift
-        lsl       r2,#18                        @  left shift 1 to bit pos 18 (FSEL26)
-        orr       r1,r1,r2                      @  add config to bit mask in r1
+        lsl       r2,#18                        @ left shift 1 to bit pos 18 (FSEL26)
+        orr       r1,r1,r2                      @ add config to bit mask in r1
 
         mov       r2,#1                         @ GPIO27: prepare r2 with 1 for shift
-        lsl       r2,#21                        @  left shift 1 to bit pos 21 (FSEL27)
-        orr       r1,r1,r2                      @  add config to bit mask in r1
+        lsl       r2,#21                        @ left shift 1 to bit pos 21 (FSEL27)
+        orr       r1,r1,r2                      @ add config to bit mask in r1
 
         str       r1,[GPIOREG,#8]               @ Store config to GPFSEL2 (base + 8)
 
@@ -1180,40 +1180,40 @@ sysTimer:
 @
 @ --------------------------------------------------------------------------------------------------------------------
 stop:
-        mov       r0, #GoStop             @ select Feeder StartStop pin
-        bl        gp_clear                @ stop Feeder
+        mov       r0, #GoStop                   @ select Feeder StartStop pin
+        bl        gp_clear                      @ stop Feeder
 
-        mov       r0, #nSLP           @ deactivate co processor
-        bl        gp_clear            @ clear output pin
-        mov       r0, #nRSTOut        @ deactivate outlet engine
-        bl        gp_clear            @ clear output pin
-        mov       r0, #nRSTCW         @ deactivate color wheel engine
-        bl        gp_clear            @ clear output pin
+        mov       r0, #nSLP                     @ deactivate co processor
+        bl        gp_clear                      @ clear output pin
+        mov       r0, #nRSTOut                  @ deactivate outlet engine
+        bl        gp_clear                      @ clear output pin
+        mov       r0, #nRSTCW                   @ deactivate color wheel engine
+        bl        gp_clear                      @ clear output pin
 
         push      {GPIOREG}
-        bl        WS2812RPi_AllOff     @ set all LEDs off
-        bl        WS2812RPi_Show       @ Apply Brightness change
+        bl        WS2812RPi_AllOff              @ set all LEDs off
+        bl        WS2812RPi_Show                @ Apply Brightness change
         bl        WS2812RPi_DeInit
         pop       {GPIOREG}
 
-        ldr       r1, =gpio_mmap_adr          @ reload the addr for accessing the GPIOs
-        ldr       r0, [r1]                    @ memory to unmap
-        mov       r1, #PAGE_SIZE              @ amount we mapped
-        bl        munmap                      @ unmap it
-        ldr       r1, =gpio_mmap_fd           @ reload the addr for accessing the GPIOs
-        ldr       r0, [r1]                    @ memory to unmap
-        bl        close                       @ close the file
+        ldr       r1, =gpio_mmap_adr            @ reload the addr for accessing the GPIOs
+        ldr       r0, [r1]                      @ memory to unmap
+        mov       r1, #PAGE_SIZE                @ amount we mapped
+        bl        munmap                        @ unmap it
+        ldr       r1, =gpio_mmap_fd             @ reload the addr for accessing the GPIOs
+        ldr       r0, [r1]                      @ memory to unmap
+        bl        close                         @ close the file
 
-        ldr       r1, =timerir_mmap_adr       @ reload the addr for accessing the Timer + IR
-        ldr       r0, [r1]                    @ memory to unmap
-        mov       r1, #PAGE_SIZE              @ amount we mapped
-        bl        munmap                      @ unmap it
-        ldr       r1, =timerir_mmap_fd        @ reload the addr for accessing the Timer + IR
-        ldr       r0, [r1]                    @ memory to unmap
-        bl        close                       @ close the file
+        ldr       r1, =timerir_mmap_adr         @ reload the addr for accessing the Timer + IR
+        ldr       r0, [r1]                      @ memory to unmap
+        mov       r1, #PAGE_SIZE                @ amount we mapped
+        bl        munmap                        @ unmap it
+        ldr       r1, =timerir_mmap_fd          @ reload the addr for accessing the Timer + IR
+        ldr       r0, [r1]                      @ memory to unmap
+        bl        close                         @ close the file
 
-        mov       r0, #0                      @ return code 0
-        mov       r7, #1                      @ exit app
+        mov       r0, #0                        @ return code 0
+        mov       r7, #1                        @ exit app
         svc       0
         .end
 
