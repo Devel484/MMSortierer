@@ -429,10 +429,8 @@ sort:
         mov       r0, #GoStop           @ select Feeder StartStop pin
         bl        gp_set                @ start Feeder
 
-        push      {WAITREG}             @ save emptyRounds
         ldr       WAITREG, =0xFA0       @ wait 4s (4000ms)
         bl        wait                  @ in order for MMs to drop into cw
-        pop       {WAITREG}             @ restore emptyRounds
 
         mov       FLAGREG, #1           @ SET FLAG -> Secure at least one round
         mov       WAITREG, #0           @ set emptyRounds to 0
@@ -478,13 +476,13 @@ check_color_sensor:
         beq       check_empty_rounds      @ no M&M in color position, cw emtpy
                                           @ else: sort for 1 cycle
 start_process:
-        mov       WAITREG, #0              @ set emptyRounds to 0
 
         bl        turn_cw                 @ turn cw to begin cycle
-        push      {WAITREG}               @ save emptyRounds
+
         ldr       WAITREG,=0x5DC          @ Wait 1.5 s
         bl        wait                    @ to give time fo color read, droppping
-        pop       {WAITREG}               @ restore emptyRounds
+
+        mov       WAITREG, #0              @ set emptyRounds to 0
 
         bl        set_outlet              @ move outlet and light LEDs
         b         check_stop_button       @ restart cycle
