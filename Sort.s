@@ -39,6 +39,7 @@
 @ Center CW and Outlet Constants:
         .equ      CENTER_CWSPEED,5           @ wait in ms for centering CW
         .equ      CENTER_OUTSPEED,10          @ wait in ms for centering OUT
+        .equ      COLOR_ALL,7
 @ Constants for LEDs
         .equ      POS_RED,2                   @ RED Led position in library
         .equ      POS_GREEN,1                 @ GREEN LED position
@@ -615,6 +616,9 @@ set_outlet:
         cmp     RLDREG,#0               @ check if no color read
         beq     turning_end             @ dont move outlet
 
+        cmp     RLDREG,#COLOR_ALL       @ all bits active, case undefined
+        beq     color_undefined         @ handle undefined case
+
         mov     r0,RLDREG               @ pass color val
 
         push	{POSREG, RLDREG, FLAGREG} @ save important values: 
@@ -630,6 +634,8 @@ set_outlet:
 
         cmp     RLDREG,POSREG           @ check if outlet already at pos
         beq     turning_end             @ dont move outlet
+
+        
 
 still_turning:
         cmp     POSREG,#6               @ Check if POS reached ring edge
@@ -658,6 +664,9 @@ turning_no_LED:
 turning_end:
         pop     {pc}                    @ return to caller
 
+color_undefined:
+        @ add handling of all color Bits on
+        pop     {pc}
 
 @ --------------------------------------------------------------------
 @ Move Outlet engine to starting position. The hall sensor only returns
