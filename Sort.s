@@ -666,6 +666,7 @@ turning_end:
 
 color_undefined:
         @ add handling of all color Bits on
+        @ if defined in the future
         pop     {pc}
 
 @ --------------------------------------------------------------------
