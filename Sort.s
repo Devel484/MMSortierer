@@ -48,7 +48,9 @@
         .equ      POS_YELLOW,4                @ YELLOW LED position
 
 @ Pin names:
-        .equ      nBTN1,8                     @ Button 1
+        .equ      nBTNone,8                   @ Button 1
+        .equ      nBTNtwo,9                   @ Button 2
+        .equ      nBTNthree,10                @ Button 3
         .equ      nRSTOut,11                  @ toggle engine Outlet
         .equ      StepOut,12                  @ engine step Outlet
         .equ      StepCW,13                   @ engine step ColorWheel
@@ -368,6 +370,9 @@ setup:
         bl        startpos_cw_init      @ color wheel position init
 
 stop_sorting:
+        mov       r0, #GoStop           @ select Feeder StartStop pin
+        bl        gp_clear              @ stop feeder if already running
+
         @ machine now ready to be started via buttons
         push      {GPIOREG}     
         mov       r0,#1                 @ LED 1 number
@@ -404,15 +409,15 @@ stop_sorting:
 @   pressed, and signaled by all green LEDs.
 @
 @   This allows the Input for starting the sorting or
-@   ending the program.
+@   ending the program entirely.
 @ --------------------------------------------------------------
 check_start_and_end:
-        mov      r0,#8                @ pin for start Button
+        mov      r0,#nBTN1                @ pin for start Button
         bl       gp_read              @ get if pressed
 
         cmp      RLDREG,#0            @ check if pressed
         beq      sort                 @ if pressed: start sorting
-        mov      r0,#10               @ pin for end program button
+        mov      r0,#nBTN3               @ pin for end program button
         bl       gp_read              @ get if pressed
 
         cmp     RLDREG,#0             @ check if pressed
@@ -438,7 +443,7 @@ sort:
 @ if pressed, the process is halted. After that 1 sorting cycle starts and loops.
 @ --------------------------------------------------------------------------
 check_stop_button:
-        mov       r0,#9                 @ pin for userBTN 3
+        mov       r0,#nBTN2             @ pin for userBTN 2
         bl        gp_read               @ get if pressed
 
         cmp       RLDREG,#0             @ check if pressed
@@ -725,10 +730,6 @@ startpos_out_center:
         mov       r1,#CENTER_OUTSPEED     @ param: wait 20ms
         bl        turn_out_step           @ turn outlet
 
-        #sub       CNTREG,CNTREG,#1        @ reduce steps counter
-        #cmp       CNTREG,#0               @ if != 0: still moving, repeat
-        #bne       startpos_out_center     @ if  = 0: in center, stop
-
         pop       {pc}                    @ Jump back
 
 
@@ -793,10 +794,6 @@ startpos_cw_center:
         mov       r0,CNTREG               @ param: turn CNTREG step
         mov       r1,#CENTER_CWSPEED      @ param: wait 20ms
         bl        turn_cw_step            @ turn outlet
-
-        @sub       CNTREG,CNTREG,#1        @ reduce steps counter
-        @cmp       CNTREG,#0               @ if != 0: still moving, repeat
-        @bne       startpos_cw_center      @ if  = 0: in center, stop
 
         pop       {pc}			  @ return to caller
 
