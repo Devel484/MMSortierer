@@ -309,6 +309,12 @@ main:
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 @       main program                                @
 @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@ --------------------------------------------------------------------
+@  Start of program:
+@   all GPIOs will be initialised, the LEDs set to red,
+@   motor signals prepared and CW and Outlet centered
+@ -------------------------------------------------------------------
 setup:
         bl        hw_init
 
@@ -319,30 +325,31 @@ setup:
                                         @ de initialised last time
         bl        WS2812RPi_Init        @ initialise LEDs
         
-        mov       r0,#100               @ Brightness for LEDs (0-100)
+        @ Startup of machine: all LEDs RED
+        mov       r0,#100                 @ Brightness for LEDs (0-100)
         bl        WS2812RPi_SetBrightness @ set Brightness for all LEDs
 
-        mov       r0,#1
+        mov       r0,#1                   @ LED 1
+        ldr       r1,=0xFF0000            @ RGB value RED
+        bl        WS2812RPi_SetSingle     @ activate
+
+        mov       r0,#2                   @ LED2
+        ldr       r1,=0xFF0000            
+        bl        WS2812RPi_SetSingle
+
+        mov       r0,#3                   @LED 3
         ldr       r1,=0xFF0000
         bl        WS2812RPi_SetSingle
 
-        mov       r0,#2
+        mov       r0,#4                   @LED 4
         ldr       r1,=0xFF0000
         bl        WS2812RPi_SetSingle
 
-        mov       r0,#3
+        mov       r0,#5                   @LED 5
         ldr       r1,=0xFF0000
         bl        WS2812RPi_SetSingle
 
-        mov       r0,#4
-        ldr       r1,=0xFF0000
-        bl        WS2812RPi_SetSingle
-
-        mov       r0,#5
-        ldr       r1,=0xFF0000
-        bl        WS2812RPi_SetSingle
-
-        mov       r0,#6
+        mov       r0,#6                   @LED 6
         ldr       r1,=0xFF0000
         bl        WS2812RPi_SetSingle
 
@@ -361,69 +368,75 @@ setup:
         bl        startpos_cw_init      @ color wheel position init
 
 stop_sorting:
-        push      {GPIOREG}
-        mov       r0,#1
+        @ machine now ready to be started via buttons
+        push      {GPIOREG}     
+        mov       r0,#1                 @ LED 1 number
+        ldr       r1,=0x00FF00          @ RGB value GREEN
+        bl        WS2812RPi_SetSingle   @activate
+
+        mov       r0,#2                 @ LED 2
         ldr       r1,=0x00FF00
         bl        WS2812RPi_SetSingle
 
-        mov       r0,#2
+        mov       r0,#3                 @ LED 3
         ldr       r1,=0x00FF00
         bl        WS2812RPi_SetSingle
 
-        mov       r0,#3
+        mov       r0,#4                 @ LED 4
         ldr       r1,=0x00FF00
         bl        WS2812RPi_SetSingle
 
-        mov       r0,#4
+        mov       r0,#5                 @ LED 5
         ldr       r1,=0x00FF00
         bl        WS2812RPi_SetSingle
 
-        mov       r0,#5
+        mov       r0,#6                 @ LED 6
         ldr       r1,=0x00FF00
         bl        WS2812RPi_SetSingle
 
-        mov       r0,#6
-        ldr       r1,=0x00FF00
-        bl        WS2812RPi_SetSingle
-
-        bl        WS2812RPi_Show        @ Apply Brightness change
+        bl        WS2812RPi_Show        @ Apply Changes
         pop       {GPIOREG}
 
+@ --------------------------------------------------------------
+@  Start of Sorting:
+@   This is the halting point for the sorting progress. 
+@   Reached at the beginning or when the stop button is 
+@   pressed, and signaled by all green LEDs.
+@
+@   This allows the Input for starting the sorting or
+@   ending the program.
+@ --------------------------------------------------------------
 check_start_and_end:
-        mov      r0,#8                @ pin for userBTN 1
+        mov      r0,#8                @ pin for start Button
         bl       gp_read              @ get if pressed
 
         cmp      RLDREG,#0            @ check if pressed
-        beq      sort                  @ if not pressed: loop
-                                      @ else start sorting
-        mov     r0,#10                  @pin for userBTN 2
-        bl      gp_read
+        beq      sort                 @ if pressed: start sorting
+        mov      r0,#10               @ pin for end program button
+        bl       gp_read              @ get if pressed
 
-        cmp     RLDREG,#0
-        beq     stop
+        cmp     RLDREG,#0             @ check if pressed
+        beq     stop                  @ if pressed: end program
 
-        b       check_start_and_end 
+        b       check_start_and_end   @ else loop and check again
 
 sort:
         mov       r0, #GoStop           @ select Feeder StartStop pin
         bl        gp_set                @ start Feeder
 
-        push      {WAITREG}             @save emptyRounds
-        ldr       WAITREG, =0xFA0        @ wait 4s (4000ms)
-        bl        wait
+        push      {WAITREG}             @ save emptyRounds
+        ldr       WAITREG, =0xFA0       @ wait 4s (4000ms)
+        bl        wait                  @ in order for MMs to drop into cw
         pop       {WAITREG}             @ restore emptyRounds
 
         mov       FLAGREG, #1           @ SET FLAG -> Secure at least one round
         mov       WAITREG, #0           @ set emptyRounds to 0
-        
 
-        @ if bedingungen
-        @ turn cw wheel
-        @ wait
-        @ in / decrease (counter, optional)
-        @ outlet + lds
-        @ b if bedingungen
 
+@ ---------------------------------------------------------------------------
+@ The sorting loop starts here. First the Button to stop the sorting is checked.
+@ if pressed, the process is halted. After that 1 sorting cycle starts and loops.
+@ --------------------------------------------------------------------------
 check_stop_button:
         mov       r0,#9                 @ pin for userBTN 3
         bl        gp_read               @ get if pressed
@@ -431,12 +444,19 @@ check_stop_button:
         cmp       RLDREG,#0             @ check if pressed
         beq       stop_sorting           @ stop sorting, wait 
 
+@ --------------------------------------------------------------------
+@ This detects if there is an MM in any of the possible sensors (color, Outlet Sensor).
+@ If none are detected, it will turn the cw 3 more times then end. If an MM is detected
+@ during one of those turns, the counter will be reset. If only one single MM is didnt drop out
+@ and is the last in the machine, there needs to be an extra turn. This is what the flag in FLAGREG 
+@ does.
+@ --------------------------------------------------------------------
 check_flag:
-        cmp       FLAGREG, #1
-        bne       check_object_sensor     @ Flag = false
-
-        mov       FLAGREG, #0             @ Flag = true -> UNSET
-        b         start_process
+        cmp       FLAGREG, #1             
+        bne       check_object_sensor     @ if Flag = false check object
+                                          @ else: 
+        mov       FLAGREG, #0             @ reset Flag 
+        b         start_process           @ sort for 1 cylce
 
 check_object_sensor:
         mov       r0,#objCW               @ object sensor cw pin number
@@ -445,25 +465,24 @@ check_object_sensor:
         bne       check_color_sensor      @ object sensor = false
 
         mov       FLAGREG, #1             @ object sensor = true -> SET FLAG
-        b         start_process
+        b         start_process           @ sort for 1 cycle
 
 check_color_sensor:
         bl        get_color               @ read color sensor
-        cmp       RLDREG, #0
-        beq       check_empty_rounds      @ no M&M in color position
-
+        cmp       RLDREG, #0              @ check if color has been read
+        beq       check_empty_rounds      @ no M&M in color position, cw emtpy
+                                          @ else: sort for 1 cycle
 start_process:
         mov       WAITREG, #0              @ set emptyRounds to 0
 
-        bl        turn_cw
-        push      {WAITREG}
+        bl        turn_cw                 @ turn cw to begin cycle
+        push      {WAITREG}               @ save emptyRounds
         ldr       WAITREG,=0x5DC          @ Wait 1.5 s
-        bl        wait                    @ Start wait
-        pop       {WAITREG}
+        bl        wait                    @ to give time fo color read, droppping
+        pop       {WAITREG}               @ restore emptyRounds
 
-        mov       r0, RLDREG              @ Set param(color/position) for TURN OUTLET
-        bl        set_outlet
-        b         check_stop_button              @ back to the beginning
+        bl        set_outlet              @ move outlet and light LEDs
+        b         check_stop_button       @ restart cycle
 
 check_empty_rounds:
         @ No M&M detected within the colorwheel.
@@ -477,15 +496,12 @@ check_empty_rounds:
 
         push      {WAITREG}               @ save emptyRounds
         ldr       WAITREG,=0x5DC          @ Value for 1.5s
-        bl        wait                    @wait 1.5s
+        bl        wait                    @ to give time fo color read, droppping
         pop       {WAITREG}               @ retrieve emptyRounds
         
-        bl        set_outlet
+        bl        set_outlet              @ move outlet and light LEDs
         
-        b         check_stop_button              @ continue from beginning
-
-
-
+        b         check_stop_button       @ restart cycle
 
         
 
@@ -497,14 +513,14 @@ check_empty_rounds:
 @       Because the LED positions defined in the library arent numbered
 @       cyclic, the position must be chosen manually.
 @
-@       Pos     | Color
-@       ----------------
-@       1       | RED
-@       2       | GREEN
-@       3       | BLUE
-@       4       | BROWN
-@       5       | ORANGE
-@       6       | YELLOW
+@       Outlet Pos | LED number  | Color
+@       -----------------------------------
+@       1          | 2           | RED
+@       2          | 1           | GREEN
+@       3          | 3           | BLUE
+@       4          | 5           | BROWN
+@       5          | 6           | ORANGE
+@       6          | 4           | YELLOW
 @
 @  param : r0 - LED pos (starting under Hall sensor)
 @  return: none
@@ -581,7 +597,7 @@ light_LED:
 @ --------------------------------------------------------------------
 @ Get Color from Color Sensor, then light LED first and Turn Outlet in the needed
 @ direction.
-@ Idea:
+@ Idea for Outlet position:
 @       The postion number is a ring system from 1 to 6. These are translated into
 @       positions adding 1 in clockwise direction.
 @       -> 6 + 1 = 1 and 1 - 1 = 6
@@ -594,15 +610,19 @@ set_outlet:
         bl      get_color               @ fetch current color at hall sensor
 
         cmp     RLDREG,#0               @ check if no color read
-        beq     turning_end                 @ dont move outlet
+        beq     turning_end             @ dont move outlet
 
         mov     r0,RLDREG               @ pass color val
-        push	{POSREG, RLDREG, FLAGREG}
-        bl      set_LED                 @ set led based on color
-        pop     {POSREG, RLDREG, FLAGREG}
+
+        push	{POSREG, RLDREG, FLAGREG} @ save important values: 
+                                          @ Positionon of outlet, Color read 
+                                          @ and MM found flag
+
+        bl      set_LED                   @ set led based on color
+        pop     {POSREG, RLDREG, FLAGREG} @restore values
 
         @ the test if the outlet already is at the correct position happens
-        @ after settign the LED soeven if the outlet doesnt turn, the LED
+        @ after setting the LED so even if the outlet doesnt turn, the LED
         @ will still light on
 
         cmp     RLDREG,POSREG           @ check if outlet already at pos
@@ -645,15 +665,15 @@ turning_end:
 @  return: none
 @ --------------------------------------------------------------------
 startpos_out_init:
-        push      {lr}
+        push      {lr}                    @ save return adress
         mov       r0,#DirOut              @ number of Outlet Dir pin
         bl        gp_set                  @ Set Outlet motor counter clockwise direction
 
 startpos_move_out_outside:
         mov       r0,#nHallOutlet         @ hall sensor pin number
         bl        gp_read                 @ get hall sensor value
-        cmp       RLDREG, #0			  @ check if outlet already inside
-        bne       startpos_out			  @ outlet is out of view
+        cmp       RLDREG, #0	          @ check if outlet already inside
+        bne       startpos_out	          @ outlet is out of view
 
         mov       r0,#DirOut              @ number of Outlet Dir pin
         bl        gp_clear                @ Set Outlet motor clockwise direction
@@ -664,7 +684,7 @@ startpos_move_out_outside:
 
         mov       r0,#DirOut              @ number of Outlet Dir pin
         bl        gp_set                  @ Set Outlet motor counter clockwise direction
-        b         startpos_move_out_outside@ Do again and check if outside
+        b         startpos_move_out_outside @ Do again and check if outside
 
 
 startpos_out:
@@ -954,13 +974,13 @@ gp_clear:
         bx        lr                     @ return
 
 @ --------------------------------------------------------------------
-@  Reads the level at the pin number passed in r0. To do so it ands a bit
+@  Reads the level at the pin number passed in r0. To do so it ANDs a bit
 @       mask with the register (GPLEV0).
 @  Example:
 @   Selected Pin:    00001000        00001000
 @   GPLEV0:      AND 10011001        10010001
 @                  = 00001000        00000000
-@   after rsl     -> 00000001        00000000
+@   after lsr     -> 00000001        00000000
 @
 @  param : r0 - PinNumber
 @  return: RLDREG - 0 or 1 (unset or set)
@@ -977,8 +997,7 @@ gp_read:
 
 
 @ --------------------------------------------------------------------
-@ Inititalize all needed GPIOs (see above), Set Input/Output mode,
-@ Set starting values of some Pins (11, 17)
+@ Inititalize all needed GPIOs (see below), Set Input/Output mode.
 @  param : none
 @  return: none
 @ -------------------------------------------------------------------
@@ -1045,11 +1064,12 @@ hw_init:
         ldr       GPIOREG, [r1]               @ load GPIO bas addr into GPIOREG
 
 
-
-@Configure Output pins
-@ Each pin has a 3 bit config mask stored in GPFSEL1 to GPFSEL5 (32bit per register)
+@ --------------------------------------------------------------------------------------
+@ Configure Output pins
+@ Each pin has a 3 bit config mask stored in GPFSEL1 to GPFSEL5 (32bit/10 pins per register)
 @ 000 -> input, 001 -> output
 @ thus only output pins need to be configured
+@ --------------------------------------------------------------------------------------
 
 @ GPFSEL0, GPIOs 0-9 (Pins 2, 3, 4, 5, 6, 7 needed as Output):
 
